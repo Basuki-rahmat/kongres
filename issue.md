@@ -1,43 +1,117 @@
-# Setup Projek: Bun + ElysiaJS + Drizzle + MySQL
+# Perencanaan Implementasi Sistem Pembanding Mandiri (SPM) dan Fitur Registrasi
 
-## Ringkasan
-Membuat projek backend baru dari nol di folder ini menggunakan Bun sebagai runtime, ElysiaJS sebagai web framework, Drizzle ORM untuk akses database, dan MySQL sebagai database.
-
-## Tech Stack
-- **Runtime & Package Manager:** Bun
-- **Web Framework:** ElysiaJS
-- **ORM:** Drizzle ORM
-- **Database:** MySQL
+Dokumen ini berisi panduan tingkat tinggi (high-level) untuk diimplementasikan oleh junior programmer atau model AI pendamping. Dokumen ini mencakup pembaruan struktur pengguna (users) serta deskripsi arsitektur inti dari Sistem Pembanding Mandiri (SPM).
 
 ---
 
-## Langkah Implementasi
+## 1. DESKRIPSI SISTEM
+Sistem Pembanding Mandiri (SPM) adalah platform web internal yang dirancang untuk mengawal integritas perolehan suara Partai Kongres pada Pemilu. Sistem bekerja dengan membandingkan secara otomatis data Form C1 fisik hasil input saksi di TPS dengan data digital hasil scraping/API real count KPU.
 
-### 1. Inisialisasi Projek
-- Jalankan `bun init` di root folder ini.
-- Pastikan `tsconfig.json` sudah dikonfigurasi untuk environment Bun + Elysia.
-
-### 2. Instalasi Dependensi
-- Install package inti ElysiaJS.
-- Install Drizzle ORM dan Drizzle Kit (sebagai dev dependency).
-- Install driver MySQL yang diperlukan (misalnya `mysql2`).
-
-### 3. Konfigurasi Database & ORM
-- Buat file konfigurasi Drizzle (`drizzle.config.ts`).
-- Buat file schema awal (misalnya tabel `users` sederhana untuk verifikasi setup) di folder schema.
-- Buat file koneksi database yang membaca kredensial dari environment variable (`.env`).
-- Tambahkan script di `package.json` untuk generate dan push migration.
-
-### 4. Setup Server
-- Buat entry point utama aplikasi (misalnya `src/index.ts`).
-- Inisialisasi instance Elysia.
-- Hubungkan koneksi database ke dalam aplikasi (bisa sebagai service terpisah atau melalui context Elysia).
-- Buat minimal satu route health check (`GET /ping`) dan satu route yang mengakses database untuk memastikan koneksi berjalan.
+## 2. STRUKTUR ARSITEKTUR REKAYASA PERANGKAT LUNAK
+*   **Client App (Saksi):** Progressive Web Apps (PWA) / HTML5 responsive (Mobile-first)
+*   **Admin/Legal Panel:** Dashboard Monitoring Anomali (Desktop optimized)
+*   **Backend Engine:** Node.js / Python FastAPI (Stateful comparison mechanism)
+*   **Database:** MySQL (Relational integrity for vote pooling)
+*   **Scraping Worker:** Async Background Job Manager (Celery / BullMQ) dengan proxy rotasi
 
 ---
 
-## Kriteria Selesai
-- Projek bisa dijalankan dengan `bun run dev` (hot-reload aktif).
-- Aplikasi berhasil terkoneksi ke database MySQL.
-- Migration bisa di-generate dan di-apply menggunakan Drizzle Kit.
-- Endpoint API bisa diakses dan berfungsi dengan benar.
+## 3. STRUKTUR FOLDER DAN FILE
+Untuk menjaga kerapian kode, terapkan struktur folder berikut di dalam backend (ElysiaJS):
+
+*   **`src/routes/`**: Berisi routing untuk endpoint API (ElysiaJS).
+    *   *Format penamaan file:* `[nama]-route.ts` (contoh: `users-route.ts`)
+*   **`src/services/`**: Berisi logika bisnis (business logic) aplikasi.
+    *   *Format penamaan file:* `[nama]-services.ts` (contoh: `users-services.ts`)
+
+---
+
+## 4. SKEMA DATABASE INTI (MySQL)
+
+### A. Modifikasi Tabel `users`
+Implementasikan (atau perbarui) skema tabel `users` menggunakan Drizzle ORM dengan spesifikasi berikut:
+
+*   `id`: INTEGER, PRIMARY KEY, AUTO INCREMENT
+*   `name`: VARCHAR(255), NOT NULL
+*   `email`: VARCHAR(255), NOT NULL, UNIQUE
+*   `password`: VARCHAR(255), NOT NULL *(Catatan: Password harus di-hash menggunakan bcrypt sebelum disimpan)*
+*   `created_at`: TIMESTAMP, DEFAULT CURRENT_TIMESTAMP
+
+### B. Tabel `t_rekap_komparasi` (Referensi SPM)
+```sql
+CREATE TABLE t_rekap_komparasi (
+    id_tps VARCHAR(20) PRIMARY KEY,
+    provinsi VARCHAR(100) NOT NULL,
+    kab_kota VARCHAR(100) NOT NULL,
+    kecamatan VARCHAR(100) NOT NULL,
+    kelurahan VARCHAR(100) NOT NULL,
+    no_tps INT NOT NULL,
+    
+    -- Data Saksi Internal
+    suara_partai_saksi INT DEFAULT 0,
+    suara_caleg_total_saksi INT DEFAULT 0,
+    total_suara_internal INT GENERATED ALWAYS AS (suara_partai_saksi + suara_caleg_total_saksi) STORED,
+    file_c1_plano_url VARCHAR(255),
+    input_saksi_timestamp TIMESTAMP,
+    
+    -- Data Hasil Scraping KPU
+    suara_partai_kpu INT DEFAULT 0,
+    suara_caleg_total_kpu INT DEFAULT 0,
+    total_suara_kpu INT DEFAULT 0,
+    last_scrape_timestamp TIMESTAMP,
+    
+    -- Logika Komparasi & Validasi Hukum
+    selisih_suara INT GENERATED ALWAYS AS ((suara_partai_saksi + suara_caleg_total_saksi) - total_suara_kpu) STORED,
+    status_anomali VARCHAR(30) DEFAULT 'BELUM_TERVERIFIKASI', -- MATCH, MISMATCH_KPU_OVER, MISMATCH_KPU_UNDER
+    catatan_hukum TEXT
+);
+
+CREATE INDEX idx_status_anomali ON t_rekap_komparasi(status_anomali);
+CREATE INDEX idx_wilayah ON t_rekap_komparasi(provinsi, kab_kota, kecamatan);
+```
+
+---
+
+## 5. ENDPOINT API
+
+### A. Registrasi User Baru
+Buat API untuk mendaftarkan pengguna baru dengan spesifikasi:
+
+*   **Endpoint:** `POST /api/users`
+*   **Logika:** 
+    1. Validasi input request body.
+    2. Cek apakah email sudah terdaftar. Jika ya, kembalikan error.
+    3. Hash password menggunakan `bcrypt`.
+    4. Simpan data user ke database.
+
+**Request Body:**
+```json
+{
+    "nama": "Rahmat",
+    "email": "rahmat@localhost",
+    "password": "rahasia"
+}
+```
+
+**Response Body (Success 200/201):**
+```json
+{
+    "data": "OK"
+}
+```
+
+**Response Body (Error 400/409):**
+```json
+{
+    "error": "Email sudah terdaftar"
+}
+```
+
+---
+
+## 6. TAHAPAN IMPLEMENTASI
+1.  **Setup Database (Drizzle ORM):** Perbarui tabel `users` dan tambahkan `t_rekap_komparasi`.
+2.  **Pembuatan Struktur Folder:** Buat folder `src/routes` dan `src/services`.
+3.  **Implementasi Service:** Buat `src/services/users-services.ts` dengan hashing bcrypt.
+4.  **Implementasi Route:** Buat `src/routes/users-route.ts` dengan endpoint `POST /api/users`.
+5.  **Registrasi Route:** Daftarkan `usersRoute` ke `src/index.ts`.

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring Anomali Real-time</title>
+  <link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <h1>SPM Admin</h1>
+        <p id="adminName">Admin</p>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/admin/index.html">
+          <span class="icon">&#128202;</span> Dashboard
+        </a>
+        <a href="/admin/anomali.html" class="active">
+          <span class="icon">&#9888;&#65039;</span> Monitoring Anomali
+        </a>
+        <a href="/admin/keberatan.html">
+          <span class="icon">&#128221;</span> Form Keberatan
+        </a>
+        <a href="/admin/pengurus.html">
+          <span class="icon">&#128101;</span> Kepengurusan
+        </a>
+        <a href="#" onclick="AdminAuth.logout()">
+          <span class="icon">&#128682;</span> Logout
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Monitoring Anomali Real-time</h1>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="realtime-badge" id="sseBadge">
+            <span class="dot"></span> Live
+          </div>
+          <button class="btn btn-sm btn-outline" onclick="loadAnomali()">&#8635; Refresh</button>
+        </div>
+      </div>
+
+      <!-- Filter -->
+      <div class="table-container" style="margin-bottom:16px;">
+        <div style="padding:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
+          <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+            <label>Status</label>
+            <select id="filterStatus" onchange="loadAnomali()">
+              <option value="">Semua Anomali</option>
+              <option value="MISMATCH_KPU_OVER">Overcounted</option>
+              <option value="MISMATCH_KPU_UNDER">Undercounted</option>
+              <option value="BELUM_TERVERIFIKASI">Belum Verifikasi</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+            <label>Provinsi</label>
+            <input type="text" id="filterProvinsi" placeholder="Filter provinsi...">
+          </div>
+          <div class="form-group" style="margin:0;flex:1;min-width:150px;">
+            <label>Kab/Kota</label>
+            <input type="text" id="filterKab" placeholder="Filter kab/kota...">
+          </div>
+          <button class="btn btn-primary" onclick="loadAnomali()">Filter</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card danger">
+          <div class="label">Total Anomali</div>
+          <div class="value" id="statTotal">-</div>
+        </div>
+        <div class="stat-card warning">
+          <div class="label">Overcounted</div>
+          <div class="value" id="statOver">-</div>
+        </div>
+        <div class="stat-card primary">
+          <div class="label">Undercounted</div>
+          <div class="value" id="statUnder">-</div>
+        </div>
+        <div class="stat-card success">
+          <div class="label">Match / Terverifikasi</div>
+          <div class="value" id="statMatch">-</div>
+        </div>
+      </div>
+
+      <!-- Live Feed -->
+      <div class="table-container">
+        <div class="table-header">
+          <h2>Live Anomaly Feed</h2>
+          <span style="font-size:0.8125rem;color:var(--gray-500);" id="lastUpdate">-</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Waktu</th>
+                <th>TPS</th>
+                <th>Wilayah</th>
+                <th>Suara Saksi</th>
+                <th>Suara KPU</th>
+                <th>Selisih</th>
+                <th>Status</th>
+                <th>Sumber</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="anomaliTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detail Modal -->
+      <div class="modal-overlay" id="detailModal" style="display:none;">
+        <div class="modal" style="max-width:700px;">
+          <div class="modal-header">
+            <h2 id="modalTitle">Detail TPS</h2>
+            <button class="btn btn-sm btn-outline" onclick="closeModal()">&#10005;</button>
+          </div>
+          <div class="modal-body" id="modalBody"></div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal()">Tutup</button>
+            <button class="btn btn-success" onclick="downloadPdf()">Download PDF</button>
+            <button class="btn btn-primary" onclick="showCatatanForm()">Update Catatan Hukum</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/admin/js/admin-auth.js"></script>
+  <script src="/admin/js/admin-api.js"></script>
+  <script>
+    if (!AdminAuth.requireAuth()) throw new Error('Not authenticated');
+
+    let currentTps = null;
+    let allData = [];
+
+    const user = AdminAuth.getUser();
+    document.getElementById('adminName').textContent = user?.name || 'Admin';
+
+    // --- Load Anomali ---
+    async function loadAnomali() {
+      const tbody = document.getElementById('anomaliTable');
+
+      const status = document.getElementById('filterStatus').value;
+      const provinsi = document.getElementById('filterProvinsi').value.trim();
+      const kab = document.getElementById('filterKab').value.trim();
+
+      try {
+        let allResults = [];
+
+        if (!status || status === 'MISMATCH_KPU_OVER') {
+          const r = await adminApi.getRekapList({ statusAnomali: 'MISMATCH_KPU_OVER', limit: 200, provinsi: provinsi || undefined, kabKota: kab || undefined });
+          allResults.push(...(r.data || []));
+        }
+        if (!status || status === 'MISMATCH_KPU_UNDER') {
+          const r = await adminApi.getRekapList({ statusAnomali: 'MISMATCH_KPU_UNDER', limit: 200, provinsi: provinsi || undefined, kabKota: kab || undefined });
+          allResults.push(...(r.data || []));
+        }
+        if (!status || status === 'BELUM_TERVERIFIKASI') {
+          const r = await adminApi.getRekapList({ statusAnomali: 'BELUM_TERVERIFIKASI', limit: 200, provinsi: provinsi || undefined, kabKota: kab || undefined });
+          allResults.push(...(r.data || []));
+        }
+
+        allData = allResults;
+
+        // Stats
+        const over = allResults.filter(d => d.statusAnomali === 'MISMATCH_KPU_OVER').length;
+        const under = allResults.filter(d => d.statusAnomali === 'MISMATCH_KPU_UNDER').length;
+        const pending = allResults.filter(d => d.statusAnomali === 'BELUM_TERVERIFIKASI').length;
+
+        document.getElementById('statTotal').textContent = formatNumber(over + under + pending);
+        document.getElementById('statOver').textContent = formatNumber(over);
+        document.getElementById('statUnder').textContent = formatNumber(under);
+        document.getElementById('statMatch').textContent = formatNumber(over + under + pending);
+
+        // Table
+        if (allResults.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Tidak ada anomali terdeteksi</td></tr>';
+          return;
+        }
+
+        // Sort by timestamp desc
+        allResults.sort((a, b) => new Date(b.inputSaksiTimestamp || 0) - new Date(a.inputSaksiTimestamp || 0));
+
+        tbody.innerHTML = allResults.slice(0, 50).map(item => {
+          const statusClass = item.statusAnomali === 'MISMATCH_KPU_OVER' ? 'status-mismatch'
+            : item.statusAnomali === 'MISMATCH_KPU_UNDER' ? 'status-pending'
+            : 'status-match';
+          const statusLabel = item.statusAnomali === 'MISMATCH_KPU_OVER' ? 'Overcounted'
+            : item.statusAnomali === 'MISMATCH_KPU_UNDER' ? 'Undercounted'
+            : item.statusAnomali === 'BELUM_TERVERIFIKASI' ? 'Belum Verif.'
+            : item.statusAnomali;
+
+          const source = item.inputSaksiTimestamp ? 'Saksi' : 'KPU Scraper';
+
+          return `
+            <tr>
+              <td>${item.inputSaksiTimestamp ? timeAgo(item.inputSaksiTimestamp) : '-'}</td>
+              <td><strong>TPS ${item.noTps}</strong></td>
+              <td>${item.kelurahan}, ${item.kecamatan}<br><small style="color:var(--gray-500);">${item.kabKota}</small></td>
+              <td>${formatNumber(item.suaraPartaiSaksi)}</td>
+              <td>${formatNumber(item.totalSuaraKpu)}</td>
+              <td style="color:var(--danger);font-weight:600;">${item.selisihSuara > 0 ? '+' : ''}${formatNumber(item.selisihSuara)}</td>
+              <td><span class="status ${statusClass}">${statusLabel}</span></td>
+              <td><small>${source}</small></td>
+              <td><button class="btn btn-sm btn-outline" onclick="showDetail('${item.idTps}')">Detail</button></td>
+            </tr>
+          `;
+        }).join('');
+
+        document.getElementById('lastUpdate').textContent = `Update: ${new Date().toLocaleTimeString('id-ID')}`;
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="9">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    // --- Detail Modal ---
+    async function showDetail(idTps) {
+      currentTps = idTps;
+      const modal = document.getElementById('detailModal');
+      const body = document.getElementById('modalBody');
+
+      modal.style.display = 'flex';
+      body.innerHTML = '<div style="text-align:center;padding:24px;"><span class="spinner"></span></div>';
+
+      try {
+        const result = await adminApi.getRekapDetail(idTps);
+        const tps = result.data;
+
+        document.getElementById('modalTitle').textContent = `TPS ${tps.noTps} — ${tps.kelurahan}`;
+
+        body.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div>
+              <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:8px;">Wilayah</h3>
+              <div style="font-size:0.875rem;">
+                <p><strong>Provinsi:</strong> ${tps.provinsi}</p>
+                <p><strong>Kab/Kota:</strong> ${tps.kabKota}</p>
+                <p><strong>Kecamatan:</strong> ${tps.kecamatan}</p>
+                <p><strong>Kelurahan:</strong> ${tps.kelurahan}</p>
+                <p><strong>No TPS:</strong> ${tps.noTps}</p>
+              </div>
+            </div>
+            <div>
+              <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:8px;">Perbandingan Suara</h3>
+              <div style="font-size:0.875rem;">
+                <p><strong>Suara Partai (Saksi):</strong> ${formatNumber(tps.suaraPartaiSaksi)}</p>
+                <p><strong>Suara Caleg Total (Saksi):</strong> ${formatNumber(tps.suaraCalegTotalSaksi)}</p>
+                <p><strong>Total Internal:</strong> ${formatNumber(tps.totalSuaraInternal)}</p>
+                <p><strong>Total KPU:</strong> ${formatNumber(tps.totalSuaraKpu)}</p>
+                <p style="margin-top:8px;"><strong>Selisih:</strong> <span style="color:var(--danger);font-size:1.125rem;font-weight:700;">${tps.selisihSuara > 0 ? '+' : ''}${formatNumber(tps.selisihSuara)}</span></p>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:8px;">Status & Catatan</h3>
+            <p><strong>Status:</strong> <span class="status ${tps.statusAnomali === 'MISMATCH_KPU_OVER' ? 'status-mismatch' : 'status-pending'}">${tps.statusAnomali}</span></p>
+            <p style="margin-top:8px;"><strong>Catatan Hukum:</strong></p>
+            <div style="background:var(--gray-50);padding:12px;border-radius:8px;margin-top:4px;font-size:0.875rem;white-space:pre-wrap;">${tps.catatanHukum || '(Belum ada catatan)'}</div>
+          </div>
+          ${tps.fileC1PlanoUrl ? `
+            <div style="margin-top:16px;">
+              <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:8px;">Foto C1 Plano</h3>
+              <img src="${tps.fileC1PlanoUrl}" style="max-width:100%;max-height:300px;border-radius:8px;" />
+            </div>
+          ` : ''}
+        `;
+      } catch (e) {
+        body.innerHTML = `<div>Error: ${e.message}</div>`;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').style.display = 'none';
+      currentTps = null;
+    }
+
+    async function downloadPdf() {
+      if (!currentTps) return;
+      try {
+        const blob = await adminApi.downloadBuktiPdf(currentTps);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bukti-sengketa-${currentTps}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('PDF berhasil didownload', 'success');
+      } catch (e) {
+        showToast('Gagal download PDF: ' + e.message, 'error');
+      }
+    }
+
+    function showCatatanForm() {
+      if (!currentTps) return;
+      const catatan = prompt('Masukkan catatan hukum untuk TPS ini:');
+      if (catatan === null) return;
+
+      adminApi.updateCatatanHukum(currentTps, catatan)
+        .then(() => {
+          showToast('Catatan hukum berhasil diupdate', 'success');
+          closeModal();
+          loadAnomali();
+        })
+        .catch(e => showToast('Gagal update catatan: ' + e.message, 'error'));
+    }
+
+    // --- SSE Real-time ---
+    function connectSSE() {
+      adminApi.connectSSE((data) => {
+        if (data.type === 'NEW_NOTIFICATION') {
+          showToast(`ALERT: ${data.title}`, 'error');
+          loadAnomali(); // Auto-refresh saat ada anomali baru
+        }
+      });
+    }
+
+    // --- Init ---
+    loadAnomali();
+    connectSSE();
+
+    // Auto-refresh setiap 15 detik
+    setInterval(loadAnomali, 15000);
+  </script>
+</body>
+</html>

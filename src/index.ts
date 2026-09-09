@@ -48,20 +48,10 @@ const app = new Elysia()
     })
   )
   .use(rateLimit(100, 60_000)) // Global: 100 request/menit per IP
-  .get("/", async () => {
-    const resp = await serveStatic("index.html");
-    if (resp) return resp;
-    return { message: "Selamat datang di API Kongres (Bun + Elysia + Drizzle + MySQL)" };
-  })
   .get("/ping", () => {
     return { status: "ok", timestamp: new Date().toISOString() };
   })
-  // Static files
-  .get("/*", async ({ path }) => {
-    const resp = await serveStatic(path);
-    if (resp) return resp;
-    return new Response("Not Found", { status: 404 });
-  })
+  // API Routes (before static files)
   .use(rateLimit(10, 60_000)) // Auth routes: 10 request/menit per IP (brute-force protection)
   .use(usersRoute)
   .use(authRoute)
@@ -71,6 +61,17 @@ const app = new Elysia()
   .use(advokasiRoute)
   .use(kpuRoute)
   .use(notificationRoute)
+  // Static files (catch-all AFTER API routes)
+  .get("/", async () => {
+    const resp = await serveStatic("index.html");
+    if (resp) return resp;
+    return { message: "Selamat datang di API Kongres (Bun + Elysia + Drizzle + MySQL)" };
+  })
+  .get("/*", async ({ path }) => {
+    const resp = await serveStatic(path);
+    if (resp) return resp;
+    return new Response("Not Found", { status: 404 });
+  })
   .listen(3000);
 
 startKpuWorker();
@@ -78,5 +79,6 @@ startNotificationCleanupWorker(24); // Cleanup setiap 24 jam
 
 console.log(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
 console.log(`📱 SPM Saksi App: http://${app.server?.hostname}:${app.server?.port}/dashboard.html`);
+console.log(`🔐 Admin Panel: http://${app.server?.hostname}:${app.server?.port}/admin/`);
 
 export type App = typeof app;

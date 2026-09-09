@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel — Login</title>
+  <link rel="stylesheet" href="/admin/css/admin.css">
+  <style>
+    .login-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--gray-900);
+      padding: 24px;
+    }
+    .login-card {
+      background: white;
+      border-radius: var(--radius);
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: var(--shadow-lg);
+    }
+    .login-card h1 {
+      text-align: center;
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+    .login-card .subtitle {
+      text-align: center;
+      color: var(--gray-500);
+      font-size: 0.875rem;
+      margin-bottom: 24px;
+    }
+    #errorMsg {
+      color: var(--danger);
+      font-size: 0.875rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h1>Admin Panel</h1>
+      <p class="subtitle">Sistem Pembanding Mandiri</p>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="admin@kongres.id" required>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Masukkan password" required>
+        </div>
+
+        <div id="errorMsg"></div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;" id="loginBtn">
+          Masuk
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/admin/js/admin-auth.js"></script>
+  <script src="/admin/js/admin-api.js"></script>
+  <script>
+    if (AdminAuth.isLoggedIn()) {
+      window.location.href = '/admin/index.html';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorMsg = document.getElementById('errorMsg');
+      errorMsg.style.display = 'none';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      const loginBtn = document.getElementById('loginBtn');
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner"></span> Masuk...';
+
+      try {
+        const result = await adminApi.login(email, password);
+
+        if (result.user.role !== 'ADMIN' && result.user.role !== 'ADVOKASI') {
+          AdminAuth.logout();
+          throw new Error('Akses ditolak. Hanya Admin/Legal yang dapat masuk.');
+        }
+
+        window.location.href = '/admin/index.html';
+      } catch (err) {
+        errorMsg.textContent = err.message;
+        errorMsg.style.display = 'block';
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Masuk';
+      }
+    });
+  </script>
+</body>
+</html>

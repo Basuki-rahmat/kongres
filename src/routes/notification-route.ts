@@ -70,7 +70,10 @@ export const notificationRoute = new Elysia({ prefix: "/api/v1/notifications" })
     }
 
     const unreadOnly = query.unread === "true";
-    const result = await getNotificationsByUser(user.id, unreadOnly);
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+
+    const result = await getNotificationsByUser(user.id, unreadOnly, page, limit);
     return { success: true, ...result };
   })
 

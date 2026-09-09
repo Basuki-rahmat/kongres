@@ -159,10 +159,12 @@ export interface RekapFilter {
   kabKota?: string;
   kecamatan?: string;
   statusAnomali?: string;
+  page?: number;
+  limit?: number;
 }
 
 /**
- * Mengambil daftar seluruh hasil rekap C1 yang sudah diinput saksi
+ * Mengambil daftar seluruh hasil rekap C1 yang sudah diinput saksi (dengan pagination)
  */
 export async function getRekapListService(filter: RekapFilter) {
   const conditions: any[] = [];
@@ -171,6 +173,19 @@ export async function getRekapListService(filter: RekapFilter) {
   if (filter.kecamatan) conditions.push(eq(tRekapKomparasi.kecamatan, filter.kecamatan));
   if (filter.statusAnomali) conditions.push(eq(tRekapKomparasi.statusAnomali, filter.statusAnomali));
 
+  const page = Math.max(1, filter.page || 1);
+  const limit = Math.min(100, Math.max(1, filter.limit || 20));
+  const offset = (page - 1) * limit;
+
+  // Hitung total
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tRekapKomparasi)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  const total = Number(countResult?.count) || 0;
+
+  // Ambil data
   const list = await db
     .select({
       idTps: tRekapKomparasi.idTps,
@@ -192,11 +207,16 @@ export async function getRekapListService(filter: RekapFilter) {
     })
     .from(tRekapKomparasi)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(tRekapKomparasi.provinsi, tRekapKomparasi.kabKota, tRekapKomparasi.noTps);
+    .orderBy(tRekapKomparasi.provinsi, tRekapKomparasi.kabKota, tRekapKomparasi.noTps)
+    .limit(limit)
+    .offset(offset);
 
   return {
     success: true,
-    total: list.length,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
     data: list,
   };
 }

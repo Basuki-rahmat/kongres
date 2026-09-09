@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kepengurusan DPD/DPC/PAC</title>
+  <link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <h1>SPM Admin</h1>
+        <p id="adminName">Admin</p>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/admin/index.html">
+          <span class="icon">&#128202;</span> Dashboard
+        </a>
+        <a href="/admin/anomali.html">
+          <span class="icon">&#9888;&#65039;</span> Monitoring Anomali
+        </a>
+        <a href="/admin/keberatan.html">
+          <span class="icon">&#128221;</span> Form Keberatan
+        </a>
+        <a href="/admin/pengurus.html" class="active">
+          <span class="icon">&#128101;</span> Kepengurusan
+        </a>
+        <a href="#" onclick="AdminAuth.logout()">
+          <span class="icon">&#128682;</span> Logout
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Kepengurusan DPD / DPC / PAC</h1>
+        <button class="btn btn-primary" onclick="showAddForm()">+ Tambah Pengurus</button>
+      </div>
+
+      <!-- Filter -->
+      <div class="table-container" style="margin-bottom:16px;">
+        <div style="padding:16px;display:flex;gap:12px;align-items:end;">
+          <div class="form-group" style="margin:0;flex:1;">
+            <label>Level</label>
+            <select id="filterLevel" onchange="loadPengurus()">
+              <option value="">Semua Level</option>
+              <option value="DPD">DPD</option>
+              <option value="DPC">DPC</option>
+              <option value="PAC">PAC</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-container">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nama</th>
+                <th>Level</th>
+                <th>Jabatan</th>
+                <th>Wilayah</th>
+                <th>Kontak</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="pengurusTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Add/Edit Modal -->
+      <div class="modal-overlay" id="formModal" style="display:none;">
+        <div class="modal">
+          <div class="modal-header">
+            <h2 id="formTitle">Tambah Pengurus</h2>
+            <button class="btn btn-sm btn-outline" onclick="closeForm()">&#10005;</button>
+          </div>
+          <div class="modal-body">
+            <form id="pengurusForm">
+              <input type="hidden" id="editId">
+              <div class="form-group">
+                <label for="nama">Nama Lengkap</label>
+                <input type="text" id="nama" required>
+              </div>
+              <div class="form-group">
+                <label for="level">Level</label>
+                <select id="level" required>
+                  <option value="DPD">DPD</option>
+                  <option value="DPC">DPC</option>
+                  <option value="PAC">PAC</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="jabatan">Jabatan</label>
+                <input type="text" id="jabatan" placeholder="Contoh: Ketua, Sekretaris, Bendahara" required>
+              </div>
+              <div class="form-group">
+                <label for="wilayah">Wilayah</label>
+                <input type="text" id="wilayah" placeholder="Contoh: DKI Jakarta" required>
+              </div>
+              <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email">
+              </div>
+              <div class="form-group">
+                <label for="telepon">Telepon</label>
+                <input type="text" id="telepon">
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeForm()">Batal</button>
+            <button class="btn btn-primary" onclick="savePengurus()">Simpan</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/admin/js/admin-auth.js"></script>
+  <script src="/admin/js/admin-api.js"></script>
+  <script>
+    if (!AdminAuth.requireAuth()) throw new Error('Not authenticated');
+
+    const user = AdminAuth.getUser();
+    document.getElementById('adminName').textContent = user?.name || 'Admin';
+
+    // --- Load Pengurus ---
+    async function loadPengurus() {
+      const tbody = document.getElementById('pengurusTable');
+      const level = document.getElementById('filterLevel').value;
+
+      try {
+        const result = await adminApi.getPengurus({ level: level || undefined });
+        const data = result.data || [];
+
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Belum ada data pengurus</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.map(p => `
+          <tr>
+            <td>${p.id}</td>
+            <td><strong>${escapeHtml(p.nama)}</strong></td>
+            <td><span class="status ${p.level === 'DPD' ? 'status-match' : p.level === 'DPC' ? 'status-pending' : 'status-mismatch'}">${p.level}</span></td>
+            <td>${escapeHtml(p.jabatan)}</td>
+            <td>${escapeHtml(p.wilayah)}</td>
+            <td>
+              ${p.email ? `<div style="font-size:0.8125rem;">${escapeHtml(p.email)}</div>` : ''}
+              ${p.telepon ? `<div style="font-size:0.8125rem;color:var(--gray-500);">${escapeHtml(p.telepon)}</div>` : ''}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline" onclick="editPengurus(${p.id})">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deletePengurus(${p.id})">Hapus</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    // --- Form ---
+    function showAddForm() {
+      document.getElementById('editId').value = '';
+      document.getElementById('formTitle').textContent = 'Tambah Pengurus';
+      document.getElementById('pengurusForm').reset();
+      document.getElementById('formModal').style.display = 'flex';
+    }
+
+    function editPengurus(id) {
+      // Find data
+      adminApi.getPengurus().then(result => {
+        const p = (result.data || []).find(x => x.id === id);
+        if (!p) return showToast('Data tidak ditemukan', 'error');
+
+        document.getElementById('editId').value = p.id;
+        document.getElementById('formTitle').textContent = 'Edit Pengurus';
+        document.getElementById('nama').value = p.nama;
+        document.getElementById('level').value = p.level;
+        document.getElementById('jabatan').value = p.jabatan;
+        document.getElementById('wilayah').value = p.wilayah;
+        document.getElementById('email').value = p.email || '';
+        document.getElementById('telepon').value = p.telepon || '';
+        document.getElementById('formModal').style.display = 'flex';
+      });
+    }
+
+    function closeForm() {
+      document.getElementById('formModal').style.display = 'none';
+    }
+
+    async function savePengurus() {
+      const editId = document.getElementById('editId').value;
+      const data = {
+        nama: document.getElementById('nama').value.trim(),
+        level: document.getElementById('level').value,
+        jabatan: document.getElementById('jabatan').value.trim(),
+        wilayah: document.getElementById('wilayah').value.trim(),
+        email: document.getElementById('email').value.trim() || undefined,
+        telepon: document.getElementById('telepon').value.trim() || undefined,
+      };
+
+      if (!data.nama || !data.level || !data.jabatan || !data.wilayah) {
+        showToast('Semua field wajib diisi', 'error');
+        return;
+      }
+
+      try {
+        if (editId) {
+          await adminApi.updatePengurus(editId, data);
+          showToast('Pengurus berhasil diupdate', 'success');
+        } else {
+          await adminApi.createPengurus(data);
+          showToast('Pengurus berhasil ditambahkan', 'success');
+        }
+        closeForm();
+        loadPengurus();
+      } catch (e) {
+        showToast('Gagal menyimpan: ' + e.message, 'error');
+      }
+    }
+
+    async function deletePengurus(id) {
+      if (!confirm('Yakin ingin menghapus pengurus ini?')) return;
+
+      try {
+        await adminApi.deletePengurus(id);
+        showToast('Pengurus berhasil dihapus', 'success');
+        loadPengurus();
+      } catch (e) {
+        showToast('Gagal menghapus: ' + e.message, 'error');
+      }
+    }
+
+    // --- Init ---
+    loadPengurus();
+  </script>
+</body>
+</html>

@@ -45,9 +45,10 @@ src/
 │   ├── schema.ts               # 11 tabel + relasi + type inference
 │   └── seed.ts                 # Import data wilayah Indonesia
 ├── middlewares/
-│   └── auth-middleware.ts       # JWT verification + role check
+│   ├── auth-middleware.ts       # JWT verification + role check
+│   └── rate-limit.ts           # Rate limiting in-memory
 ├── routes/
-│   ├── auth-route.ts           # Login + profile
+│   ├── auth-route.ts           # Login + profile + password change/reset
 │   ├── users-route.ts          # Registrasi
 │   ├── saksi-route.ts          # Upload C1 + rekap
 │   ├── advokasi-route.ts       # Anomali + bukti sengketa + PDF
@@ -56,18 +57,42 @@ src/
 │   ├── pengurus-route.ts       # CRUD kepengurusan
 │   └── wilayah-route.ts        # Data wilayah administratif
 ├── services/
-│   ├── auth-services.ts        # Login + profile
+│   ├── auth-services.ts        # Login + profile + password change/reset
 │   ├── users-services.ts       # Registrasi + hash password
-│   ├── saksi-services.ts       # Upload C1 + rekap (async I/O)
+│   ├── saksi-services.ts       # Upload C1 + rekap (async I/O, pagination)
 │   ├── advokasi-services.ts    # Anomali + export bukti + PDF
 │   ├── kpu-scraper-services.ts # Fetch KPU + normalisasi + komparasi
-│   ├── notification-services.ts # CRUD + auto-notifikasi anomali
+│   ├── notification-services.ts # CRUD + auto-notifikasi + cleanup/TTL
 │   ├── pdf-generator.ts        # Generate PDF bukti sengketa
 │   ├── sse-manager.ts          # SSE connection manager
 │   ├── pengurus-services.ts    # CRUD DPD/DPC/PAC/Anak Ranting
 │   └── wilayah-services.ts     # Query wilayah administratif
 └── workers/
     └── kpu-worker.ts           # Background scraping worker
+
+public/                         # Frontend PWA + Admin Panel
+├── index.html                  # Login Saksi
+├── dashboard.html              # Dashboard Saksi
+├── upload.html                 # Upload C1
+├── notifications.html          # Notifikasi Saksi
+├── manifest.json               # PWA manifest
+├── sw.js                       # Service worker
+├── css/style.css               # Mobile-first CSS
+├── js/
+│   ├── api.js                  # API client
+│   ├── auth.js                 # Auth manager
+│   └── app.js                  # SW registration
+├── icons/                      # PWA icons
+└── admin/
+    ├── login.html              # Login Admin
+    ├── index.html              # Admin Dashboard
+    ├── anomali.html            # Monitoring Real-time
+    ├── keberatan.html          # Form Keberatan Saksi
+    ├── pengurus.html           # Kepengurusan CRUD
+    ├── css/admin.css           # Desktop-first CSS
+    └── js/
+        ├── admin-api.js        # Admin API client
+        └── admin-auth.js       # Admin auth helpers
 ```
 
 ---
@@ -140,8 +165,10 @@ pengurus_dpd → provinsi, pengurus_dpc → kabupaten, dll.
 ### 5.1. Autentikasi (`/api/auth`)
 | Method | Endpoint | Auth | Keterangan |
 |--------|----------|------|------------|
-| POST | `/api/auth/login` | ❌ | Login,返回 JWT token |
+| POST | `/api/auth/login` | ❌ | Login, return JWT token |
 | GET | `/api/auth/me` | ✅ | Profil user login |
+| PUT | `/api/auth/change-password` | ✅ | Ganti password (verifikasi password lama) |
+| PUT | `/api/auth/reset-password/:user_id` | ADMIN | Reset password user lain |
 
 ### 5.2. Registrasi (`/api/users`)
 | Method | Endpoint | Auth | Keterangan |
@@ -152,7 +179,7 @@ pengurus_dpd → provinsi, pengurus_dpc → kabupaten, dll.
 | Method | Endpoint | Auth | Keterangan |
 |--------|----------|------|------------|
 | POST | `/api/v1/saksi/upload-c1` | ✅ | Upload data C1 (suara + foto + GPS) |
-| GET | `/api/v1/saksi/rekap` | ✅ | Daftar rekap (filter: provinsi, kabKota, kecamatan, statusAnomali) |
+| GET | `/api/v1/saksi/rekap` | ✅ | Daftar rekap (?page=1&limit=20, filter: provinsi, kabKota, kecamatan, statusAnomali) |
 | GET | `/api/v1/saksi/rekap/:id_tps` | ✅ | Detail rekap satu TPS |
 
 ### 5.4. Advokasi (`/api/v1/advokasi`)
@@ -174,7 +201,7 @@ pengurus_dpd → provinsi, pengurus_dpc → kabupaten, dll.
 | Method | Endpoint | Auth | Keterangan |
 |--------|----------|------|------------|
 | GET | `/api/v1/notifications/stream` | ✅ | SSE stream (real-time push) |
-| GET | `/api/v1/notifications` | ✅ | Daftar notifikasi (?unread=true) |
+| GET | `/api/v1/notifications` | ✅ | Daftar notifikasi (?page=1&limit=20, ?unread=true) |
 | GET | `/api/v1/notifications/unread-count` | ✅ | Jumlah belum dibaca |
 | PUT | `/api/v1/notifications/:id/read` | ✅ | Tandai sudah dibaca |
 | PUT | `/api/v1/notifications/read-all` | ✅ | Tandai semua sudah dibaca |
@@ -248,6 +275,7 @@ pengurus_dpd → provinsi, pengurus_dpc → kabupaten, dll.
 - Password di-hash dengan bcrypt (salt 10)
 - CORS dikonfigurasi via env `CORS_ORIGIN`
 - `JWT_SECRET` wajib di-set di `.env` (server crash jika kosong)
+- Rate limiting: 100 req/menit (global), 10 req/menit (auth routes)
 
 ---
 
@@ -295,11 +323,11 @@ CORS_ORIGIN=*
 - [x] Registrasi user (batasan role)
 - [x] Login + profil user
 - [x] Upload C1 saksi (suara + foto + GPS, async I/O)
-- [x] Rekap data saksi (list + detail)
+- [x] Rekap data saksi (list + detail dengan pagination)
 - [x] Background worker scraping KPU
 - [x] Deteksi anomali otomatis (overcounted/undercounted)
 - [x] Push notification SSE ke Tim Hukum
-- [x] CRUD notifikasi + mark read
+- [x] CRUD notifikasi + mark read (dengan pagination)
 - [x] Export bukti sengketa JSON
 - [x] Generate PDF bukti sengketa
 - [x] Update catatan hukum
@@ -307,21 +335,21 @@ CORS_ORIGIN=*
 - [x] Query wilayah administratif
 - [x] CORS configuration
 - [x] Input validation (Elysia schema)
+- [x] Rate limiting (in-memory per IP)
+- [x] Password change (user sendiri)
+- [x] Password reset (admin only)
+- [x] Notification cleanup/TTL (otomatis hapus > 30 hari)
 
-### ❌ Belum Diimplementasi (Frontend)
-- [ ] Client App Saksi (PWA / Mobile-first)
-- [ ] Admin/Legal Panel Dashboard
-- [ ] Monitoring Anomali Real-time (WebSocket/SSE di frontend)
-- [ ] Form Keberatan Saksi (digital)
+### ✅ Selesai (Frontend)
+- [x] **Client App Saksi (PWA / Mobile-first)** — Vanilla HTML/CSS/JS, 4 halaman
+- [x] **Admin/Legal Panel Dashboard** — Desktop-first, 5 halaman
+- [x] **Monitoring Anomali Real-time (WebSocket/SSE di frontend)** — Live feed + SSE auto-refresh
+- [x] **Form Keberatan Saksi (digital)** — Form + export PDF bukti sengketa
 
 ### ❌ Belum Diimplementasi (Backend Lanjutan)
 - [ ] Job queue (BullMQ) untuk scraping
 - [ ] Proxy rotation untuk scraper
-- [ ] Rate limiting
 - [ ] Account lockout setelah N kali gagal login
-- [ ] Password change/reset
-- [ ] Pagination endpoint (notifications, rekap)
-- [ ] Notification cleanup/TTL
 - [ ] Logging & monitoring (Sentry, etc.)
 
 ---
@@ -344,6 +372,8 @@ bun run db:seed
 bun run dev
 
 # Server berjalan di http://localhost:3000
+# Saksi App: http://localhost:3000/dashboard.html
+# Admin Panel: http://localhost:3000/admin/
 ```
 
 ---

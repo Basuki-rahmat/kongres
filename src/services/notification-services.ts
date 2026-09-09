@@ -63,25 +63,43 @@ export async function createNotification(
 }
 
 /**
- * Mengambil daftar notifikasi milik user tertentu
+ * Mengambil daftar notifikasi milik user tertentu (dengan pagination)
  */
 export async function getNotificationsByUser(
   userId: number,
-  unreadOnly: boolean = false
+  unreadOnly: boolean = false,
+  page: number = 1,
+  limit: number = 20
 ) {
   const conditions = [eq(notifications.userId, userId)];
   if (unreadOnly) {
     conditions.push(eq(notifications.isRead, false));
   }
 
+  const offset = (page - 1) * limit;
+
+  // Hitung total
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(notifications)
+    .where(and(...conditions));
+
+  const total = Number(countResult?.count) || 0;
+
+  // Ambil data
   const list = await db
     .select()
     .from(notifications)
     .where(and(...conditions))
-    .orderBy(desc(notifications.createdAt));
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit)
+    .offset(offset);
 
   return {
-    total: list.length,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
     data: list,
   };
 }
@@ -219,4 +237,64 @@ export async function notifyTimHukumAnomaly(params: {
   );
 
   return sentCount;
+}
+
+// =============================================================================
+// NOTIFICATION CLEANUP / TTL
+// Hapus notifikasi yang sudah dibaca lebih dari N hari
+// =============================================================================
+
+/**
+ * Hapus notifikasi yang sudah dibaca lebih dari N hari (default 30 hari)
+ * @returns Jumlah notifikasi yang dihapus
+ */
+export async function cleanupOldNotifications(daysOld: number = 30): Promise<number> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
+  const result = await db
+    .delete(notifications)
+    .where(
+      and(
+        eq(notifications.isRead, true),
+        // createdAt < cutoffDate
+        sql`${notifications.createdAt} < ${cutoffDate}`
+      )
+    );
+
+  const deletedCount = Number(result[0]?.affectedRows) || 0;
+
+  if (deletedCount > 0) {
+    console.log(`[Notif] Cleanup: ${deletedCount} notifikasi lama (> ${daysOld} hari) dihapus`);
+  }
+
+  return deletedCount;
+}
+
+/**
+ * Jalankan cleanup berkala (dipanggil dari index.ts atau worker)
+ * Membersihkan notifikasi lama setiap 24 jam
+ */
+export function startNotificationCleanupWorker(intervalHours: number = 24) {
+  // Jalankan pertama kali setelah 1 jam
+  const initialDelay = 60 * 60 * 1000;
+
+  setTimeout(async () => {
+    try {
+      await cleanupOldNotifications(30);
+    } catch (error) {
+      console.error("[Notif] Cleanup worker error:", error);
+    }
+  }, initialDelay);
+
+  // Jalankan berkala
+  setInterval(async () => {
+    try {
+      await cleanupOldNotifications(30);
+    } catch (error) {
+      console.error("[Notif] Cleanup worker error:", error);
+    }
+  }, intervalHours * 60 * 60 * 1000);
+
+  console.log(`[Notif] Cleanup worker dimulai (setiap ${intervalHours} jam)`);
 }

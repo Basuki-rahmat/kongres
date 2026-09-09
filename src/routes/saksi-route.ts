@@ -79,6 +79,8 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
         kabKota: query.kabKota,
         kecamatan: query.kecamatan,
         statusAnomali: query.statusAnomali,
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 20,
       });
       return result;
     },
@@ -88,6 +90,8 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
         kabKota: t.Optional(t.String()),
         kecamatan: t.Optional(t.String()),
         statusAnomali: t.Optional(t.String()),
+        page: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
       }),
     }
   )

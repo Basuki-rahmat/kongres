@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Keberatan Saksi</title>
+  <link rel="stylesheet" href="/admin/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <h1>SPM Admin</h1>
+        <p id="adminName">Admin</p>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/admin/index.html">
+          <span class="icon">&#128202;</span> Dashboard
+        </a>
+        <a href="/admin/anomali.html">
+          <span class="icon">&#9888;&#65039;</span> Monitoring Anomali
+        </a>
+        <a href="/admin/keberatan.html" class="active">
+          <span class="icon">&#128221;</span> Form Keberatan
+        </a>
+        <a href="/admin/pengurus.html">
+          <span class="icon">&#128101;</span> Kepengurusan
+        </a>
+        <a href="#" onclick="AdminAuth.logout()">
+          <span class="icon">&#128682;</span> Logout
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Form Keberatan Saksi</h1>
+        <button class="btn btn-outline" onclick="showNewForm()">+ Buat Keberatan Baru</button>
+      </div>
+
+      <!-- Daftar Keberatan -->
+      <div class="table-container">
+        <div class="table-header">
+          <h2>Daftar Keberatan</h2>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>TPS</th>
+                <th>Wilayah</th>
+                <th>Suara Saksi</th>
+                <th>Suara KPU</th>
+                <th>Selisih</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="keberatanTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Form Modal -->
+      <div class="modal-overlay" id="formModal" style="display:none;">
+        <div class="modal" style="max-width:600px;">
+          <div class="modal-header">
+            <h2 id="formTitle">Buat Keberatan Baru</h2>
+            <button class="btn btn-sm btn-outline" onclick="closeForm()">&#10005;</button>
+          </div>
+          <div class="modal-body">
+            <form id="keberatanForm">
+              <div class="form-group">
+                <label for="idTps">ID TPS</label>
+                <input type="text" id="idTps" placeholder="Contoh: 3201010001" required>
+                <small style="color:var(--gray-500);">Masukkan ID TPS yang ingin diajukan keberatan</small>
+              </div>
+
+              <div class="form-group">
+                <label for="namaSaksi">Nama Saksi</label>
+                <input type="text" id="namaSaksi" placeholder="Nama lengkap saksi" required>
+              </div>
+
+              <div class="form-group">
+                <label for="partai">Partai</label>
+                <input type="text" id="partai" placeholder="Nama partai" required>
+              </div>
+
+              <div class="form-group">
+                <label for="jenisKeberatan">Jenis Keberatan</label>
+                <select id="jenisKeberatan" required>
+                  <option value="">Pilih jenis keberatan...</option>
+                  <option value="SELISIH_SUARA">Selisih Suara</option>
+                  <option value="DATA_TIDAK_SAMA">Data Tidak Sama</option>
+                  <option value="C1_TIDAK_DITAMPILKAN">C1 Tidak Ditampilkan</option>
+                  <option value="HITUNG_ULANG">Hitung Ulang</option>
+                  <option value="LAINNYA">Lainnya</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="uraianKeberatan">Uraian Keberatan</label>
+                <textarea id="uraianKeberatan" rows="4" placeholder="Jelaskan detail keberatan..." required></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="buktiPendukung">Bukti Pendukung (Opsional)</label>
+                <textarea id="buktiPendukung" rows="3" placeholder="Sebutkan bukti-bukti pendukung..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="tuntutan">Tuntutan</label>
+                <select id="tuntutan" required>
+                  <option value="">Pilih tuntutan...</option>
+                  <option value="HITUNG_ULANG">Hitung Ulang Suara</option>
+                  <option value="PERBAIKAN_DATA">Perbaikan Data</option>
+                  <option value="PEMBATALAN">Pembatalan Hasil</option>
+                  <option value="LAINNYA">Lainnya</option>
+                </select>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeForm()">Batal</button>
+            <button class="btn btn-primary" onclick="submitKeberatan()">Kirim Keberatan</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail Modal -->
+      <div class="modal-overlay" id="detailModal" style="display:none;">
+        <div class="modal" style="max-width:700px;">
+          <div class="modal-header">
+            <h2>Detail Keberatan</h2>
+            <button class="btn btn-sm btn-outline" onclick="closeDetail()">&#10005;</button>
+          </div>
+          <div class="modal-body" id="detailBody"></div>
+          <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeDetail()">Tutup</button>
+            <button class="btn btn-success" onclick="downloadPdf()">Download PDF</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/admin/js/admin-auth.js"></script>
+  <script src="/admin/js/admin-api.js"></script>
+  <script>
+    if (!AdminAuth.requireAuth()) throw new Error('Not authenticated');
+
+    const user = AdminAuth.getUser();
+    document.getElementById('adminName').textContent = user?.name || 'Admin';
+
+    let currentTpsId = null;
+
+    // --- Load Keberatan List ---
+    async function loadKeberatan() {
+      const tbody = document.getElementById('keberatanTable');
+
+      try {
+        // Get all anomali data
+        const over = await adminApi.getRekapList({ statusAnomali: 'MISMATCH_KPU_OVER', limit: 100 });
+        const under = await adminApi.getRekapList({ statusAnomali: 'MISMATCH_KPU_UNDER', limit: 100 });
+        const pending = await adminApi.getRekapList({ statusAnomali: 'BELUM_TERVERIFIKASI', limit: 100 });
+
+        const all = [...(over.data || []), ...(under.data || []), ...(pending.data || [])];
+
+        if (all.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Tidak ada data keberatan</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = all.map((item, i) => {
+          const statusClass = item.statusAnomali === 'MISMATCH_KPU_OVER' ? 'status-mismatch' : 'status-pending';
+          return `
+            <tr>
+              <td>${i + 1}</td>
+              <td><strong>TPS ${item.noTps}</strong></td>
+              <td>${item.kelurahan}, ${item.kabKota}</td>
+              <td>${formatNumber(item.suaraPartaiSaksi)}</td>
+              <td>${formatNumber(item.totalSuaraKpu)}</td>
+              <td style="color:var(--danger);font-weight:600;">${item.selisihSuara > 0 ? '+' : ''}${formatNumber(item.selisihSuara)}</td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick="showDetail('${item.idTps}')">Detail</button>
+                <button class="btn btn-sm btn-primary" onclick="showNewForm('${item.idTps}')">Buat Keberatan</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="7">Error: ${e.message}</td></tr>`;
+      }
+    }
+
+    // --- New Keberatan Form ---
+    function showNewForm(tpsId = null) {
+      document.getElementById('formModal').style.display = 'flex';
+      if (tpsId) {
+        document.getElementById('idTps').value = tpsId;
+        document.getElementById('idTps').disabled = true;
+        document.getElementById('formTitle').textContent = 'Buat Keberatan untuk TPS ' + tpsId;
+      } else {
+        document.getElementById('idTps').disabled = false;
+        document.getElementById('formTitle').textContent = 'Buat Keberatan Baru';
+      }
+    }
+
+    function closeForm() {
+      document.getElementById('formModal').style.display = 'none';
+      document.getElementById('keberatanForm').reset();
+      document.getElementById('idTps').disabled = false;
+    }
+
+    async function submitKeberatan() {
+      const idTps = document.getElementById('idTps').value.trim();
+      const namaSaksi = document.getElementById('namaSaksi').value.trim();
+      const partai = document.getElementById('partai').value.trim();
+      const jenisKeberatan = document.getElementById('jenisKeberatan').value;
+      const uraian = document.getElementById('uraianKeberatan').value.trim();
+      const bukti = document.getElementById('buktiPendukung').value.trim();
+      const tuntutan = document.getElementById('tuntutan').value;
+
+      if (!idTps || !namaSaksi || !partai || !jenisKeberatan || !uraian || !tuntutan) {
+        showToast('Semua field wajib diisi', 'error');
+        return;
+      }
+
+      try {
+        // Simulate keberatan submission (in real app, this would call an API)
+        const keberatanData = {
+          idTps,
+          namaSaksi,
+          partai,
+          jenisKeberatan,
+          uraianKeberatan: uraian,
+          buktiPendukung: bukti,
+          tuntutan,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Store in localStorage for now
+        const stored = JSON.parse(localStorage.getItem('keberatan_list') || '[]');
+        stored.push(keberatanData);
+        localStorage.setItem('keberatan_list', JSON.stringify(stored));
+
+        showToast('Keberatan berhasil diajukan!', 'success');
+        closeForm();
+        loadKeberatan();
+      } catch (e) {
+        showToast('Gagal mengajukan keberatan: ' + e.message, 'error');
+      }
+    }
+
+    // --- Detail Modal ---
+    async function showDetail(idTps) {
+      currentTpsId = idTps;
+      document.getElementById('detailModal').style.display = 'flex';
+      const body = document.getElementById('detailBody');
+
+      body.innerHTML = '<div style="text-align:center;padding:24px;"><span class="spinner"></span></div>';
+
+      try {
+        const result = await adminApi.getRekapDetail(idTps);
+        const tps = result.data;
+
+        body.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+            <div>
+              <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:12px;">Data TPS</h3>
+              <div class="data-row"><span class="label">Provinsi</span><span class="value">${tps.provinsi}</span></div>
+              <div class="data-row"><span class="label">Kab/Kota</span><span class="value">${tps.kabKota}</span></div>
+              <div class="data-row"><span class="label">Kecamatan</span><span class="value">${tps.kecamatan}</span></div>
+              <div class="data-row"><span class="label">Kelurahan</span><span class="value">${tps.kelurahan}</span></div>
+              <div class="data-row"><span class="label">No TPS</span><span class="value">${tps.noTps}</span></div>
+            </div>
+            <div>
+              <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:12px;">Data Suara</h3>
+              <div class="data-row"><span class="label">Suara Partai (Saksi)</span><span class="value">${formatNumber(tps.suaraPartaiSaksi)}</span></div>
+              <div class="data-row"><span class="label">Suara Caleg (Saksi)</span><span class="value">${formatNumber(tps.suaraCalegTotalSaksi)}</span></div>
+              <div class="data-row"><span class="label">Total Internal</span><span class="value">${formatNumber(tps.totalSuaraInternal)}</span></div>
+              <div class="data-row"><span class="label">Total KPU</span><span class="value">${formatNumber(tps.totalSuaraKpu)}</span></div>
+              <div class="data-row"><span class="label">Selisih</span><span class="value" style="color:var(--danger);font-weight:700;">${tps.selisihSuara > 0 ? '+' : ''}${formatNumber(tps.selisihSuara)}</span></div>
+              <div class="data-row"><span class="label">Status</span><span class="value"><span class="status ${tps.statusAnomali === 'MISMATCH_KPU_OVER' ? 'status-mismatch' : 'status-pending'}">${tps.statusAnomali}</span></span></div>
+            </div>
+          </div>
+          <div style="margin-top:20px;">
+            <h3 style="font-size:0.875rem;color:var(--gray-500);margin-bottom:8px;">Catatan Hukum</h3>
+            <div style="background:var(--gray-50);padding:12px;border-radius:8px;white-space:pre-wrap;font-size:0.875rem;">${tps.catatanHukum || '(Belum ada catatan)'}</div>
+          </div>
+        `;
+      } catch (e) {
+        body.innerHTML = `<div>Error: ${e.message}</div>`;
+      }
+    }
+
+    function closeDetail() {
+      document.getElementById('detailModal').style.display = 'none';
+      currentTpsId = null;
+    }
+
+    async function downloadPdf() {
+      if (!currentTpsId) return;
+      try {
+        const blob = await adminApi.downloadBuktiPdf(currentTpsId);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bukti-sengketa-${currentTpsId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('PDF berhasil didownload', 'success');
+      } catch (e) {
+        showToast('Gagal download PDF: ' + e.message, 'error');
+      }
+    }
+
+    // --- Init ---
+    loadKeberatan();
+  </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a56db">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>SPM Saksi — Dashboard</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>SPM Saksi</h1>
+    <span class="badge" id="notifBadge" style="display:none;">0</span>
+  </header>
+
+  <main class="app-content">
+    <div id="userInfo" class="card" style="margin-bottom: 16px;">
+      <div class="data-row">
+        <span class="label">Nama</span>
+        <span class="value" id="userName">-</span>
+      </div>
+      <div class="data-row">
+        <span class="label">Role</span>
+        <span class="value" id="userRole">-</span>
+      </div>
+    </div>
+
+    <h2 style="font-size: 1rem; margin-bottom: 12px;">Rekap Data</h2>
+
+    <!-- Filters -->
+    <div class="card" style="margin-bottom: 12px;">
+      <div class="form-group" style="margin-bottom: 8px;">
+        <select id="filterStatus">
+          <option value="">Semua Status</option>
+          <option value="MATCH">Match</option>
+          <option value="MISMATCH_KPU_OVER">Overcounted</option>
+          <option value="MISMATCH_KPU_UNDER">Undercounted</option>
+          <option value="BELUM_TERVERIFIKASI">Belum Terverifikasi</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Rekap List -->
+    <div id="rekapList"></div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination" style="display:none;">
+      <button id="prevBtn" onclick="loadRekap(currentPage - 1)">Sebelumnya</button>
+      <span id="pageInfo"></span>
+      <button id="nextBtn" onclick="loadRekap(currentPage + 1)">Selanjutnya</button>
+    </div>
+
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon">&#128203;</div>
+      <h3>Belum ada data</h3>
+      <p>Data rekap akan muncul setelah proses scraping KPU selesai.</p>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="/dashboard.html" class="active">
+      <span class="icon">&#128202;</span>
+      Dashboard
+    </a>
+    <a href="/upload.html">
+      <span class="icon">&#128228;</span>
+      Upload C1
+    </a>
+    <a href="/notifications.html">
+      <span class="icon">&#128276;</span>
+      Notifikasi
+    </a>
+  </nav>
+
+  <script src="/js/auth.js"></script>
+  <script src="/js/api.js"></script>
+  <script>
+    if (!Auth.requireAuth()) throw new Error('Not authenticated');
+
+    let currentPage = 1;
+    let totalPages = 1;
+
+    // Load user info
+    function loadProfile() {
+      const user = Auth.getUser();
+      if (user) {
+        document.getElementById('userName').textContent = user.name;
+        document.getElementById('userRole').textContent = user.role;
+      }
+    }
+
+    // Load unread count
+    async function loadUnreadCount() {
+      try {
+        const res = await api.getUnreadCount();
+        const badge = document.getElementById('notifBadge');
+        if (res.count > 0) {
+          badge.textContent = res.count;
+          badge.style.display = 'inline';
+        } else {
+          badge.style.display = 'none';
+        }
+      } catch (e) {}
+    }
+
+    // Load rekap list
+    async function loadRekap(page = 1) {
+      const container = document.getElementById('rekapList');
+      const emptyState = document.getElementById('emptyState');
+      const pagination = document.getElementById('pagination');
+
+      container.innerHTML = '<div style="text-align:center;padding:24px;"><span class="spinner"></span></div>';
+      emptyState.style.display = 'none';
+
+      try {
+        const status = document.getElementById('filterStatus').value;
+        const result = await api.getRekapList({
+          statusAnomali: status || undefined,
+          page,
+          limit: 15,
+        });
+
+        currentPage = result.page;
+        totalPages = result.totalPages;
+
+        if (result.data.length === 0) {
+          container.innerHTML = '';
+          emptyState.style.display = 'block';
+          pagination.style.display = 'none';
+          return;
+        }
+
+        container.innerHTML = result.data.map(item => {
+          const statusClass = item.statusAnomali === 'MATCH' ? 'status-match'
+            : item.statusAnomali?.startsWith('MISMATCH') ? 'status-mismatch'
+            : 'status-pending';
+
+          const statusLabel = item.statusAnomali === 'MATCH' ? 'Match'
+            : item.statusAnomali === 'MISMATCH_KPU_OVER' ? 'Overcounted'
+            : item.statusAnomali === 'MISMATCH_KPU_UNDER' ? 'Undercounted'
+            : item.statusAnomali === 'BELUM_TERVERIFIKASI' ? 'Belum Verifikasi'
+            : item.statusAnomali || '-';
+
+          return `
+            <div class="card" onclick="window.location.href='/upload.html?tps=${item.idTps}'" style="cursor:pointer;">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">TPS ${item.noTps}</div>
+                  <div style="font-size:0.8125rem;color:var(--gray-500);">${item.kelurahan}, ${item.kecamatan}</div>
+                </div>
+                <span class="status ${statusClass}">${statusLabel}</span>
+              </div>
+              <div class="data-row">
+                <span class="label">Suara Saksi</span>
+                <span class="value">${formatNumber(item.suaraPartaiSaksi)}</span>
+              </div>
+              <div class="data-row">
+                <span class="label">Suara KPU</span>
+                <span class="value">${formatNumber(item.totalSuaraKpu)}</span>
+              </div>
+              <div class="data-row">
+                <span class="label">Selisih</span>
+                <span class="value" style="color:${item.selisihSuara !== 0 ? 'var(--danger)' : 'var(--success)'}">
+                  ${item.selisihSuara > 0 ? '+' : ''}${formatNumber(item.selisihSuara)}
+                </span>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Pagination
+        pagination.style.display = totalPages > 1 ? 'flex' : 'none';
+        document.getElementById('prevBtn').disabled = currentPage <= 1;
+        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        document.getElementById('pageInfo').textContent = `Hal ${currentPage} / ${totalPages}`;
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
+      }
+    }
+
+    // Filter change
+    document.getElementById('filterStatus').addEventListener('change', () => loadRekap(1));
+
+    // Init
+    loadProfile();
+    loadUnreadCount();
+    loadRekap(1);
+
+    // Refresh setiap 30 detik
+    setInterval(() => {
+      loadUnreadCount();
+      loadRekap(currentPage);
+    }, 30000);
+  </script>
+</body>
+</html>

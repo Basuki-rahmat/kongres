@@ -54,7 +54,7 @@ class ApiClient {
     });
   }
 
-  // --- Rekap ---
+  // --- Rekap (prefix: /api/v1/saksi) ---
   async getRekapList(params = {}) {
     const qs = new URLSearchParams();
     if (params.provinsi) qs.set('provinsi', params.provinsi);
@@ -64,19 +64,19 @@ class ApiClient {
     if (params.page) qs.set('page', params.page);
     if (params.limit) qs.set('limit', params.limit);
     const q = qs.toString();
-    return this.request('GET', `/saksi/rekap${q ? '?' + q : ''}`);
+    return this.request('GET', `/v1/saksi/rekap${q ? '?' + q : ''}`);
   }
 
   async getRekapDetail(idTps) {
-    return this.request('GET', `/saksi/rekap/${idTps}`);
+    return this.request('GET', `/v1/saksi/rekap/${idTps}`);
   }
 
-  // --- Upload C1 ---
+  // --- Upload C1 (prefix: /api/v1/saksi) ---
   async uploadC1(formData) {
     const headers = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
-    const res = await fetch(`${API_BASE}/saksi/upload-c1`, {
+    const res = await fetch(`${API_BASE}/v1/saksi/upload-c1`, {
       method: 'POST',
       headers,
       body: formData,
@@ -87,26 +87,26 @@ class ApiClient {
     return data;
   }
 
-  // --- Notifications ---
+  // --- Notifications (prefix: /api/v1/notifications) ---
   async getNotifications(page = 1, limit = 20) {
-    return this.request('GET', `/notifications?page=${page}&limit=${limit}`);
+    return this.request('GET', `/v1/notifications?page=${page}&limit=${limit}`);
   }
 
   async getUnreadCount() {
-    return this.request('GET', '/notifications/unread-count');
+    return this.request('GET', '/v1/notifications/unread-count');
   }
 
   async markAsRead(id) {
-    return this.request('PUT', `/notifications/${id}/read`);
+    return this.request('PUT', `/v1/notifications/${id}/read`);
   }
 
   async markAllRead() {
-    return this.request('PUT', '/notifications/read-all');
+    return this.request('PUT', '/v1/notifications/read-all');
   }
 
   // --- SSE Stream ---
   connectSSE(onMessage) {
-    const evtSource = new EventSource(`${API_BASE}/notifications/stream?token=${this.token}`);
+    const evtSource = new EventSource(`${API_BASE}/v1/notifications/stream?token=${this.token}`);
 
     evtSource.onmessage = (event) => {
       try {

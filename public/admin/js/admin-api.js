@@ -55,7 +55,7 @@ class AdminApi {
     return this.request('GET', `/users/${id}`);
   }
 
-  // --- Rekap ---
+  // --- Rekap (prefix: /api/v1/saksi) ---
   async getRekapList(params = {}) {
     const qs = new URLSearchParams();
     if (params.provinsi) qs.set('provinsi', params.provinsi);
@@ -65,25 +65,25 @@ class AdminApi {
     if (params.page) qs.set('page', params.page);
     if (params.limit) qs.set('limit', params.limit);
     const q = qs.toString();
-    return this.request('GET', `/saksi/rekap${q ? '?' + q : ''}`);
+    return this.request('GET', `/v1/saksi/rekap${q ? '?' + q : ''}`);
   }
 
   async getRekapDetail(idTps) {
-    return this.request('GET', `/saksi/rekap/${idTps}`);
+    return this.request('GET', `/v1/saksi/rekap/${idTps}`);
   }
 
-  // --- Catatan Hukum ---
+  // --- Catatan Hukum (prefix: /api/v1/advokasi) ---
   async updateCatatanHukum(idTps, catatan) {
-    return this.request('PUT', `/advokasi/catatan-hukum/${idTps}`, { catatan });
+    return this.request('PUT', `/v1/advokasi/catatan-hukum/${idTps}`, { catatan });
   }
 
-  // --- Notifications ---
+  // --- Notifications (prefix: /api/v1/notifications) ---
   async getNotifications(page = 1, limit = 50) {
-    return this.request('GET', `/notifications?page=${page}&limit=${limit}`);
+    return this.request('GET', `/v1/notifications?page=${page}&limit=${limit}`);
   }
 
   async getUnreadCount() {
-    return this.request('GET', '/notifications/unread-count');
+    return this.request('GET', '/v1/notifications/unread-count');
   }
 
   // --- Pengurus ---
@@ -107,13 +107,13 @@ class AdminApi {
     return this.request('DELETE', `/pengurus/${id}`);
   }
 
-  // --- Keberatan ---
+  // --- Keberatan (prefix: /api/v1/advokasi) ---
   async createKeberatan(data) {
-    return this.request('POST', '/advokasi/keberatan', data);
+    return this.request('POST', '/v1/advokasi/keberatan', data);
   }
 
   async downloadBuktiPdf(idTps) {
-    const res = await fetch(`${API_BASE}/advokasi/download-bukti-pdf/${idTps}`, {
+    const res = await fetch(`${API_BASE}/v1/advokasi/download-bukti-pdf/${idTps}`, {
       headers: { 'Authorization': `Bearer ${this.token}` },
     });
     if (!res.ok) throw new Error('Gagal download PDF');
@@ -122,7 +122,7 @@ class AdminApi {
 
   // --- SSE ---
   connectSSE(onMessage) {
-    const evtSource = new EventSource(`${API_BASE}/notifications/stream?token=${this.token}`);
+    const evtSource = new EventSource(`${API_BASE}/v1/notifications/stream?token=${this.token}`);
     evtSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a56db">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>SPM Saksi — Notifikasi</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Notifikasi</h1>
+    <button class="btn btn-sm btn-outline" onclick="markAllRead()" style="color:white;border-color:rgba(255,255,255,0.5);">
+      Tandai Semua Dibaca
+    </button>
+  </header>
+
+  <main class="app-content">
+    <div id="notifList"></div>
+
+    <!-- Pagination -->
+    <div class="pagination" id="pagination" style="display:none;">
+      <button id="prevBtn" onclick="loadNotifs(currentPage - 1)">Sebelumnya</button>
+      <span id="pageInfo"></span>
+      <button id="nextBtn" onclick="loadNotifs(currentPage + 1)">Selanjutnya</button>
+    </div>
+
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon">&#128276;</div>
+      <h3>Tidak ada notifikasi</h3>
+      <p>Notifikasi akan muncul ketika ada anomali terdeteksi.</p>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="/dashboard.html">
+      <span class="icon">&#128202;</span>
+      Dashboard
+    </a>
+    <a href="/upload.html">
+      <span class="icon">&#128228;</span>
+      Upload C1
+    </a>
+    <a href="/notifications.html" class="active">
+      <span class="icon">&#128276;</span>
+      Notifikasi
+    </a>
+  </nav>
+
+  <script src="/js/auth.js"></script>
+  <script src="/js/api.js"></script>
+  <script>
+    if (!Auth.requireAuth()) throw new Error('Not authenticated');
+
+    let currentPage = 1;
+    let totalPages = 1;
+
+    async function loadNotifs(page = 1) {
+      const container = document.getElementById('notifList');
+      const emptyState = document.getElementById('emptyState');
+      const pagination = document.getElementById('pagination');
+
+      container.innerHTML = '<div style="text-align:center;padding:24px;"><span class="spinner"></span></div>';
+      emptyState.style.display = 'none';
+
+      try {
+        const result = await api.getNotifications(page, 20);
+
+        currentPage = result.page;
+        totalPages = result.totalPages;
+
+        if (result.data.length === 0) {
+          container.innerHTML = '';
+          emptyState.style.display = 'block';
+          pagination.style.display = 'none';
+          return;
+        }
+
+        container.innerHTML = result.data.map(n => `
+          <div class="notif-item ${n.isRead ? '' : 'unread'}" onclick="markRead(${n.id}, this)">
+            <div class="notif-title">${escapeHtml(n.title)}</div>
+            <div class="notif-body">${escapeHtml(n.body)}</div>
+            <div class="notif-time">${timeAgo(n.createdAt)}</div>
+          </div>
+        `).join('');
+
+        // Pagination
+        pagination.style.display = totalPages > 1 ? 'flex' : 'none';
+        document.getElementById('prevBtn').disabled = currentPage <= 1;
+        document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        document.getElementById('pageInfo').textContent = `Hal ${currentPage} / ${totalPages}`;
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p>Error: ${err.message}</p></div>`;
+      }
+    }
+
+    async function markRead(id, el) {
+      try {
+        await api.markAsRead(id);
+        el.classList.remove('unread');
+      } catch (e) {}
+    }
+
+    async function markAllRead() {
+      try {
+        await api.markAllRead();
+        document.querySelectorAll('.notif-item.unread').forEach(el => el.classList.remove('unread'));
+        showToast('Semua notifikasi ditandai sudah dibaca', 'success');
+      } catch (e) {
+        showToast('Gagal menandai notifikasi', 'error');
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // SSE listener for real-time
+    function connectSSE() {
+      api.connectSSE((data) => {
+        if (data.type === 'NEW_NOTIFICATION') {
+          showToast('Notifikasi baru: ' + data.title, 'info');
+          loadNotifs(1);
+        }
+      });
+    }
+
+    // Init
+    loadNotifs(1);
+    connectSSE();
+
+    // Refresh setiap 30 detik
+    setInterval(() => loadNotifs(currentPage), 30000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a56db">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>SPM Saksi — Upload C1</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Upload C1</h1>
+  </header>
+
+  <main class="app-content">
+    <!-- GPS Indicator -->
+    <div class="gps-indicator" id="gpsIndicator">
+      <span class="dot"></span>
+      <span id="gpsText">Mencari lokasi GPS...</span>
+    </div>
+
+    <!-- TPS Info -->
+    <div class="card" id="tpsInfo" style="display:none;">
+      <h3 style="font-size:1rem;margin-bottom:8px;" id="tpsTitle">TPS -</h3>
+      <div class="data-row">
+        <span class="label">Provinsi</span>
+        <span class="value" id="tpsProv">-</span>
+      </div>
+      <div class="data-row">
+        <span class="label">Kab/Kota</span>
+        <span class="value" id="tpsKab">-</span>
+      </div>
+      <div class="data-row">
+        <span class="label">Kecamatan</span>
+        <span class="value" id="tpsKec">-</span>
+      </div>
+      <div class="data-row">
+        <span class="label">Kelurahan</span>
+        <span class="value" id="tpsKel">-</span>
+      </div>
+    </div>
+
+    <!-- Form -->
+    <form id="uploadForm">
+      <div class="form-group">
+        <label for="idTps">ID TPS</label>
+        <input type="text" id="idTps" placeholder="Contoh: 3201010001" required>
+      </div>
+
+      <div class="form-group">
+        <label for="suaraPartai">Suara Partai (Form C1)</label>
+        <input type="number" id="suaraPartai" placeholder="0" min="0" required>
+      </div>
+
+      <div class="form-group">
+        <label for="suaraCaleg">Suara Caleg Total (Form C1)</label>
+        <input type="number" id="suaraCaleg" placeholder="0" min="0" required>
+      </div>
+
+      <div class="form-group">
+        <label>Foto Form C1 (Plano)</label>
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+          <div class="icon">&#128247;</div>
+          <p>Ketuk untuk foto / pilih dari gallery</p>
+          <input type="file" id="fileInput" accept="image/*" capture="environment" style="display:none;">
+        </div>
+        <img id="preview" class="upload-preview" style="display:none;">
+      </div>
+
+      <div class="form-group">
+        <label for="catatan">Catatan (Opsional)</label>
+        <textarea id="catatan" placeholder="Catatan tambahan..."></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="submitBtn">
+        Kirim Data C1
+      </button>
+    </form>
+  </main>
+
+  <nav class="bottom-nav">
+    <a href="/dashboard.html">
+      <span class="icon">&#128202;</span>
+      Dashboard
+    </a>
+    <a href="/upload.html" class="active">
+      <span class="icon">&#128228;</span>
+      Upload C1
+    </a>
+    <a href="/notifications.html">
+      <span class="icon">&#128276;</span>
+      Notifikasi
+    </a>
+  </nav>
+
+  <script src="/js/auth.js"></script>
+  <script src="/js/api.js"></script>
+  <script>
+    if (!Auth.requireAuth()) throw new Error('Not authenticated');
+
+    let gpsLat = null;
+    let gpsLong = null;
+    let selectedFile = null;
+
+    // Get TPS ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tpsId = urlParams.get('tps');
+    if (tpsId) {
+      document.getElementById('idTps').value = tpsId;
+      loadTpsInfo(tpsId);
+    }
+
+    // GPS
+    function initGPS() {
+      if (!navigator.geolocation) {
+        document.getElementById('gpsText').textContent = 'GPS tidak tersedia';
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          gpsLat = pos.coords.latitude;
+          gpsLong = pos.coords.longitude;
+          const indicator = document.getElementById('gpsIndicator');
+          indicator.classList.add('active');
+          document.getElementById('gpsText').textContent =
+            `Lokasi: ${gpsLat.toFixed(6)}, ${gpsLong.toFixed(6)}`;
+        },
+        (err) => {
+          document.getElementById('gpsText').textContent = 'GPS tidak aktif — upload tanpa lokasi';
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    // Load TPS info
+    async function loadTpsInfo(idTps) {
+      try {
+        const result = await api.getRekapDetail(idTps);
+        const tps = result.data;
+        document.getElementById('tpsInfo').style.display = 'block';
+        document.getElementById('tpsTitle').textContent = `TPS ${tps.noTps}`;
+        document.getElementById('tpsProv').textContent = tps.provinsi;
+        document.getElementById('tpsKab').textContent = tps.kabKota;
+        document.getElementById('tpsKec').textContent = tps.kecamatan;
+        document.getElementById('tpsKel').textContent = tps.kelurahan;
+      } catch (e) {
+        // TPS not found in rekap — user can still upload
+      }
+    }
+
+    // File preview
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      selectedFile = file;
+      const preview = document.getElementById('preview');
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        preview.src = ev.target.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Form submit
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const idTps = document.getElementById('idTps').value.trim();
+      const suaraPartai = parseInt(document.getElementById('suaraPartai').value) || 0;
+      const suaraCaleg = parseInt(document.getElementById('suaraCaleg').value) || 0;
+      const catatan = document.getElementById('catatan').value.trim();
+
+      if (!idTps) {
+        showToast('ID TPS wajib diisi', 'error');
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span> Mengirim...';
+
+      try {
+        const formData = new FormData();
+        formData.append('id_tps', idTps);
+        formData.append('suara_partai', suaraPartai);
+        formData.append('suara_caleg_total', suaraCaleg);
+        if (catatan) formData.append('catatan', catatan);
+        if (gpsLat !== null) formData.append('geo_lat', gpsLat);
+        if (gpsLong !== null) formData.append('geo_long', gpsLong);
+        if (selectedFile) formData.append('file', selectedFile);
+
+        await api.uploadC1(formData);
+
+        showToast('Data C1 berhasil dikirim!', 'success');
+        setTimeout(() => {
+          window.location.href = '/dashboard.html';
+        }, 1500);
+      } catch (err) {
+        showToast(err.message || 'Gagal mengirim data', 'error');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Kirim Data C1';
+      }
+    });
+
+    // Init
+    initGPS();
+  </script>
+</body>
+</html>

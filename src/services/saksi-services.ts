@@ -135,3 +135,77 @@ export async function uploadC1Service(input: UploadC1Input, userId?: number) {
     data: updated,
   };
 }
+
+export interface RekapFilter {
+  provinsi?: string;
+  kabKota?: string;
+  kecamatan?: string;
+  statusAnomali?: string;
+}
+
+/**
+ * Mengambil daftar seluruh hasil rekap C1 yang sudah diinput saksi
+ */
+export async function getRekapListService(filter: RekapFilter) {
+  const { and, eq, sql } = await import("drizzle-orm");
+
+  const conditions: any[] = [];
+  if (filter.provinsi) conditions.push(eq(tRekapKomparasi.provinsi, filter.provinsi));
+  if (filter.kabKota) conditions.push(eq(tRekapKomparasi.kabKota, filter.kabKota));
+  if (filter.kecamatan) conditions.push(eq(tRekapKomparasi.kecamatan, filter.kecamatan));
+  if (filter.statusAnomali) conditions.push(eq(tRekapKomparasi.statusAnomali, filter.statusAnomali));
+
+  const list = await db
+    .select({
+      idTps: tRekapKomparasi.idTps,
+      provinsi: tRekapKomparasi.provinsi,
+      kabKota: tRekapKomparasi.kabKota,
+      kecamatan: tRekapKomparasi.kecamatan,
+      kelurahan: tRekapKomparasi.kelurahan,
+      noTps: tRekapKomparasi.noTps,
+      suaraPartaiSaksi: tRekapKomparasi.suaraPartaiSaksi,
+      suaraCalegTotalSaksi: tRekapKomparasi.suaraCalegTotalSaksi,
+      totalSuaraInternal: tRekapKomparasi.totalSuaraInternal,
+      totalSuaraKpu: tRekapKomparasi.totalSuaraKpu,
+      selisihSuara: tRekapKomparasi.selisihSuara,
+      statusAnomali: tRekapKomparasi.statusAnomali,
+      fileC1PlanoUrl: tRekapKomparasi.fileC1PlanoUrl,
+      geoLat: tRekapKomparasi.geoLat,
+      geoLong: tRekapKomparasi.geoLong,
+      inputSaksiTimestamp: tRekapKomparasi.inputSaksiTimestamp,
+    })
+    .from(tRekapKomparasi)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(tRekapKomparasi.provinsi, tRekapKomparasi.kabKota, tRekapKomparasi.noTps);
+
+  return {
+    success: true,
+    total: list.length,
+    data: list,
+  };
+}
+
+/**
+ * Mengambil detail rekap C1 satu TPS berdasarkan id_tps
+ */
+export async function getRekapByIdTpsService(idTps: string) {
+  const [data] = await db
+    .select()
+    .from(tRekapKomparasi)
+    .where(eq(tRekapKomparasi.idTps, idTps))
+    .limit(1);
+
+  if (!data) {
+    return {
+      success: false,
+      status: 404,
+      error: `Data rekap TPS ${idTps} tidak ditemukan`,
+    };
+  }
+
+  return {
+    success: true,
+    status: 200,
+    data,
+  };
+}

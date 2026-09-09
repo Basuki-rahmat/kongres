@@ -1,13 +1,22 @@
 import { Elysia, t } from "elysia";
 import { jwtPlugin } from "./auth-route";
-import { uploadC1Service } from "../services/saksi-services";
+import {
+  uploadC1Service,
+  getRekapListService,
+  getRekapByIdTpsService,
+} from "../services/saksi-services";
 
 export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
   .use(jwtPlugin)
+
+  // -----------------------------------------------------------------------
+  // POST /api/v1/saksi/upload-c1
+  // Input data hasil C1 fisik dari saksi TPS (suara + foto + GPS)
+  // -----------------------------------------------------------------------
   .post(
     "/upload-c1",
     async ({ headers, jwt, body, set }) => {
-      // 1. Verifikasi token autentikasi saksi
+      // Verifikasi JWT untuk mendapatkan userId
       const authHeader = headers["authorization"];
       let userId: number | undefined;
 
@@ -23,7 +32,6 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
         }
       }
 
-      // 2. Eksekusi service upload C1
       const result = await uploadC1Service(
         {
           idTps: body.id_tps,
@@ -67,4 +75,43 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
         file_base64: t.Optional(t.String()),
       }),
     }
-  );
+  )
+
+  // -----------------------------------------------------------------------
+  // GET /api/v1/saksi/rekap
+  // Daftar seluruh hasil rekap C1 yang sudah diinput saksi
+  // Query: ?provinsi=...&kabKota=...&kecamatan=...&statusAnomali=...
+  // -----------------------------------------------------------------------
+  .get(
+    "/rekap",
+    async ({ query }) => {
+      const result = await getRekapListService({
+        provinsi: query.provinsi,
+        kabKota: query.kabKota,
+        kecamatan: query.kecamatan,
+        statusAnomali: query.statusAnomali,
+      });
+      return result;
+    },
+    {
+      query: t.Object({
+        provinsi: t.Optional(t.String()),
+        kabKota: t.Optional(t.String()),
+        kecamatan: t.Optional(t.String()),
+        statusAnomali: t.Optional(t.String()),
+      }),
+    }
+  )
+
+  // -----------------------------------------------------------------------
+  // GET /api/v1/saksi/rekap/:id_tps
+  // Detail rekap C1 dan komparasi satu TPS berdasarkan ID TPS
+  // -----------------------------------------------------------------------
+  .get("/rekap/:id_tps", async ({ params, set }) => {
+    const result = await getRekapByIdTpsService(params.id_tps);
+    if (!result.success) {
+      set.status = result.status;
+      return { error: result.error };
+    }
+    return result;
+  });

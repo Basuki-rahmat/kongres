@@ -7,6 +7,7 @@ export interface RegisterUserInput {
   nama: string;
   email: string;
   password: string;
+  role?: string;
 }
 
 export async function registerUserService(input: RegisterUserInput) {
@@ -34,6 +35,7 @@ export async function registerUserService(input: RegisterUserInput) {
     name: input.nama,
     email: input.email,
     password: hashedPassword,
+    role: input.role || "SAKSI",
   });
 
   return {

@@ -19,6 +19,14 @@ export const usersRoute = new Elysia({ prefix: "/api/users" }).post(
       nama: t.String({ minLength: 1 }),
       email: t.String({ format: "email" }),
       password: t.String({ minLength: 1 }),
+      role: t.Optional(
+        t.Union([
+          t.Literal("ADMIN"),
+          t.Literal("SAKSI"),
+          t.Literal("ADVOKASI"),
+          t.Literal("PENGURUS"),
+        ])
+      ),
     }),
   }
 );

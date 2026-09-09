@@ -59,6 +59,11 @@ export const tRekapKomparasi = mysqlTable(
       "BELUM_TERVERIFIKASI"
     ),
     catatanHukum: text("catatan_hukum"),
+
+    // Geo-tagging & Petugas Saksi
+    geoLat: varchar("geo_lat", { length: 50 }),
+    geoLong: varchar("geo_long", { length: 50 }),
+    saksiUserId: int("saksi_user_id").references(() => users.id),
   },
   (table) => [
     index("idx_status_anomali").on(table.statusAnomali),

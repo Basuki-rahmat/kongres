@@ -3,6 +3,8 @@ import { usersRoute } from "./routes/users-route";
 import { authRoute } from "./routes/auth-route";
 import { wilayahRoute } from "./routes/wilayah-route";
 import { pengurusRoute } from "./routes/pengurus-route";
+import { saksiRoute } from "./routes/saksi-route";
+import { advokasiRoute } from "./routes/advokasi-route";
 
 const app = new Elysia()
   .get("/", () => ({
@@ -15,6 +17,8 @@ const app = new Elysia()
   .use(authRoute)
   .use(wilayahRoute)
   .use(pengurusRoute)
+  .use(saksiRoute)
+  .use(advokasiRoute)
   .listen(3000);
 
 console.log(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);

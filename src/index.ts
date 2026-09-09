@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import { usersRoute } from "./routes/users-route";
+import { authRoute } from "./routes/auth-route";
 import { wilayahRoute } from "./routes/wilayah-route";
 import { pengurusRoute } from "./routes/pengurus-route";
 
@@ -11,6 +12,7 @@ const app = new Elysia()
     return { status: "ok", timestamp: new Date().toISOString() };
   })
   .use(usersRoute)
+  .use(authRoute)
   .use(wilayahRoute)
   .use(pengurusRoute)
   .listen(3000);

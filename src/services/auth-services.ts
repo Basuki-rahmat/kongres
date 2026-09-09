@@ -74,3 +74,90 @@ export async function getUserProfileService(userId: number) {
     user,
   };
 }
+
+// =============================================================================
+// PASSWORD CHANGE
+// =============================================================================
+export async function changePasswordService(
+  userId: number,
+  currentPassword: string,
+  newPassword: string
+) {
+  // 1. Cari user
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) {
+    return {
+      success: false,
+      status: 404,
+      error: "Pengguna tidak ditemukan",
+    };
+  }
+
+  // 2. Verifikasi password lama
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch) {
+    return {
+      success: false,
+      status: 401,
+      error: "Password lama salah",
+    };
+  }
+
+  // 3. Hash password baru
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // 4. Update password
+  await db
+    .update(users)
+    .set({ password: hashedPassword })
+    .where(eq(users.id, userId));
+
+  return {
+    success: true,
+    status: 200,
+    message: "Password berhasil diubah",
+  };
+}
+
+// =============================================================================
+// PASSWORD RESET (Admin only — reset password user lain)
+// =============================================================================
+export async function resetPasswordService(
+  targetUserId: number,
+  newPassword: string
+) {
+  // 1. Cek apakah target user ada
+  const [targetUser] = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.id, targetUserId))
+    .limit(1);
+
+  if (!targetUser) {
+    return {
+      success: false,
+      status: 404,
+      error: "Target pengguna tidak ditemukan",
+    };
+  }
+
+  // 2. Hash password baru
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // 3. Update password
+  await db
+    .update(users)
+    .set({ password: hashedPassword })
+    .where(eq(users.id, targetUserId));
+
+  return {
+    success: true,
+    status: 200,
+    message: `Password ${targetUser.name} berhasil direset`,
+  };
+}

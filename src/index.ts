@@ -1,5 +1,6 @@
 import { Elysia } from "elysia";
 import cors from "@elysiajs/cors";
+import { rateLimit } from "./middlewares/rate-limit";
 import { usersRoute } from "./routes/users-route";
 import { authRoute } from "./routes/auth-route";
 import { wilayahRoute } from "./routes/wilayah-route";
@@ -9,6 +10,7 @@ import { advokasiRoute } from "./routes/advokasi-route";
 import { kpuRoute } from "./routes/kpu-route";
 import { notificationRoute } from "./routes/notification-route";
 import { startKpuWorker } from "./workers/kpu-worker";
+import { startNotificationCleanupWorker } from "./services/notification-services";
 
 const app = new Elysia()
   .use(
@@ -19,12 +21,14 @@ const app = new Elysia()
       credentials: true,
     })
   )
+  .use(rateLimit(100, 60_000)) // Global: 100 request/menit per IP
   .get("/", () => ({
     message: "Selamat datang di API Kongres (Bun + Elysia + Drizzle + MySQL)",
   }))
   .get("/ping", () => {
     return { status: "ok", timestamp: new Date().toISOString() };
   })
+  .use(rateLimit(10, 60_000)) // Auth routes: 10 request/menit per IP (brute-force protection)
   .use(usersRoute)
   .use(authRoute)
   .use(wilayahRoute)
@@ -36,6 +40,7 @@ const app = new Elysia()
   .listen(3000);
 
 startKpuWorker();
+startNotificationCleanupWorker(24); // Cleanup setiap 24 jam
 
 console.log(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
 

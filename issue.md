@@ -115,3 +115,43 @@ Buat API untuk mendaftarkan pengguna baru dengan spesifikasi:
 3.  **Implementasi Service:** Buat `src/services/users-services.ts` dengan hashing bcrypt.
 4.  **Implementasi Route:** Buat `src/routes/users-route.ts` dengan endpoint `POST /api/users`.
 5.  **Registrasi Route:** Daftarkan `usersRoute` ke `src/index.ts`.
+
+---
+
+## 7. STATUS IMPLEMENTASI (TERBARU)
+
+### ✅ Selesai (Backend)
+- [x] Setup Bun + ElysiaJS + Drizzle ORM + MySQL
+- [x] 11 tabel database + relasi + seed data wilayah
+- [x] Autentikasi JWT + role-based access control
+- [x] Registrasi user (batasan role)
+- [x] Login + profil user
+- [x] Upload C1 saksi (suara + foto + GPS, async I/O)
+- [x] Rekap data saksi (list + detail dengan pagination)
+- [x] Background worker scraping KPU
+- [x] Deteksi anomali otomatis (overcounted/undercounted)
+- [x] Push notification SSE ke Tim Hukum
+- [x] CRUD notifikasi + mark read (dengan pagination)
+- [x] Export bukti sengketa JSON
+- [x] Generate PDF bukti sengketa
+- [x] Update catatan hukum
+- [x] CRUD kepengurusan DPD/DPC/PAC/Anak Ranting
+- [x] Query wilayah administratif
+- [x] CORS configuration
+- [x] Input validation (Elysia schema)
+- [x] **Rate limiting (in-memory per IP)**
+- [x] **Password change (user sendiri)**
+- [x] **Password reset (admin only)**
+- [x] **Notification cleanup/TTL (otomatis hapus > 30 hari)**
+
+### ❌ Belum Diimplementasi (Frontend)
+- [ ] Client App Saksi (PWA / Mobile-first)
+- [ ] Admin/Legal Panel Dashboard
+- [ ] Monitoring Anomali Real-time (WebSocket/SSE di frontend)
+- [ ] Form Keberatan Saksi (digital)
+
+### ❌ Belum Diimplementasi (Backend Lanjutan)
+- [ ] Job queue (BullMQ) untuk scraping
+- [ ] Proxy rotation untuk scraper
+- [ ] Account lockout setelah N kali gagal login
+- [ ] Logging & monitoring (Sentry, etc.)

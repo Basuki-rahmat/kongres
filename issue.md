@@ -145,7 +145,7 @@ Buat API untuk mendaftarkan pengguna baru dengan spesifikasi:
 - [x] **Notification cleanup/TTL (otomatis hapus > 30 hari)**
 
 ### ❌ Belum Diimplementasi (Frontend)
-- [ ] Client App Saksi (PWA / Mobile-first)
+- [x] **Client App Saksi (PWA / Mobile-first)** — Vanilla HTML/CSS/JS, 4 halaman
 - [ ] Admin/Legal Panel Dashboard
 - [ ] Monitoring Anomali Real-time (WebSocket/SSE di frontend)
 - [ ] Form Keberatan Saksi (digital)

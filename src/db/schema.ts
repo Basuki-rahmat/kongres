@@ -323,6 +323,31 @@ export const pengurusAnakRantingRelations = relations(
   })
 );
 
+// Relasi Users -> Notifikasi & Rekap Komparasi
+export const usersRelations = relations(users, ({ many }) => ({
+  notifications: many(notifications),
+  rekapKomparasi: many(tRekapKomparasi),
+}));
+
+// Relasi Notifications -> Users
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+// Relasi TRekapKomparasi -> Users (saksi)
+export const tRekapKomparasiRelations = relations(
+  tRekapKomparasi,
+  ({ one }) => ({
+    saksiUser: one(users, {
+      fields: [tRekapKomparasi.saksiUserId],
+      references: [users.id],
+    }),
+  })
+);
+
 // =============================================================================
 // TYPE INFERENCES
 // =============================================================================

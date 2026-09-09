@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { jwtPlugin } from "./auth-route";
+import { jwtPlugin, verifyJwt, checkRole } from "../middlewares/auth-middleware";
 import {
   uploadC1Service,
   getRekapListService,
@@ -9,27 +9,14 @@ import {
 export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
   .use(jwtPlugin)
 
-  // -----------------------------------------------------------------------
-  // POST /api/v1/saksi/upload-c1
-  // Input data hasil C1 fisik dari saksi TPS (suara + foto + GPS)
-  // -----------------------------------------------------------------------
+  // POST /api/v1/saksi/upload-c1 (wajib login)
   .post(
     "/upload-c1",
     async ({ headers, jwt, body, set }) => {
-      // Verifikasi JWT untuk mendapatkan userId
-      const authHeader = headers["authorization"];
-      let userId: number | undefined;
-
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.substring(7);
-        const payload = (await jwt.verify(token)) as {
-          id: number;
-          role: string;
-        } | false;
-
-        if (payload && payload.id) {
-          userId = payload.id;
-        }
+      const user = await verifyJwt(headers, jwt.verify as any);
+      if (!user) {
+        set.status = 401;
+        return { error: "Token tidak valid" };
       }
 
       const result = await uploadC1Service(
@@ -46,7 +33,7 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
           geoLong: body.geo_long,
           fileBase64: body.file_base64,
         },
-        userId
+        user.id
       );
 
       if (!result.success) {
@@ -77,14 +64,16 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
     }
   )
 
-  // -----------------------------------------------------------------------
-  // GET /api/v1/saksi/rekap
-  // Daftar seluruh hasil rekap C1 yang sudah diinput saksi
-  // Query: ?provinsi=...&kabKota=...&kecamatan=...&statusAnomali=...
-  // -----------------------------------------------------------------------
+  // GET /api/v1/saksi/rekap (wajib login)
   .get(
     "/rekap",
-    async ({ query }) => {
+    async ({ headers, jwt, query, set }) => {
+      const user = await verifyJwt(headers, jwt.verify as any);
+      if (!user) {
+        set.status = 401;
+        return { error: "Token tidak valid" };
+      }
+
       const result = await getRekapListService({
         provinsi: query.provinsi,
         kabKota: query.kabKota,
@@ -103,11 +92,14 @@ export const saksiRoute = new Elysia({ prefix: "/api/v1/saksi" })
     }
   )
 
-  // -----------------------------------------------------------------------
-  // GET /api/v1/saksi/rekap/:id_tps
-  // Detail rekap C1 dan komparasi satu TPS berdasarkan ID TPS
-  // -----------------------------------------------------------------------
-  .get("/rekap/:id_tps", async ({ params, set }) => {
+  // GET /api/v1/saksi/rekap/:id_tps (wajib login)
+  .get("/rekap/:id_tps", async ({ headers, jwt, params, set }) => {
+    const user = await verifyJwt(headers, jwt.verify as any);
+    if (!user) {
+      set.status = 401;
+      return { error: "Token tidak valid" };
+    }
+
     const result = await getRekapByIdTpsService(params.id_tps);
     if (!result.success) {
       set.status = result.status;

@@ -1,6 +1,6 @@
-import fs from "fs";
+import fs from "fs/promises";
 import path from "path";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { tRekapKomparasi } from "../db/schema";
 import { notifyTimHukumAnomaly } from "./notification-services";
@@ -22,16 +22,13 @@ export interface UploadC1Input {
 /**
  * Menyimpan file base64 ke folder lokal public/uploads/c1/
  */
-function saveBase64Image(base64Str: string, idTps: string): string {
+async function saveBase64Image(base64Str: string, idTps: string): Promise<string> {
   const uploadDir = path.resolve(process.cwd(), "public/uploads/c1");
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
+  await fs.mkdir(uploadDir, { recursive: true });
 
   let extension = "jpg";
   let cleanBase64 = base64Str;
 
-  // Cek apakah ada header Data URI (contoh: data:image/png;base64,...)
   const matches = base64Str.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
   if (matches) {
     extension = matches[1] === "jpeg" ? "jpg" : matches[1]!;
@@ -41,15 +38,14 @@ function saveBase64Image(base64Str: string, idTps: string): string {
   const filename = `c1_${idTps.replace(/[^a-zA-Z0-9_-]/g, "_")}_${Date.now()}.${extension}`;
   const filePath = path.join(uploadDir, filename);
 
-  fs.writeFileSync(filePath, Buffer.from(cleanBase64, "base64"));
+  await fs.writeFile(filePath, Buffer.from(cleanBase64, "base64"));
   return `/uploads/c1/${filename}`;
 }
 
 export async function uploadC1Service(input: UploadC1Input, userId?: number) {
-  // 1. Simpan foto jika ada
   let fileUrl: string | null = null;
   if (input.fileBase64) {
-    fileUrl = saveBase64Image(input.fileBase64, input.idTps);
+    fileUrl = await saveBase64Image(input.fileBase64, input.idTps);
   }
 
   const totalSuaraInternal = Number(input.suaraPartai) + Number(input.suaraCaleg);
@@ -169,8 +165,6 @@ export interface RekapFilter {
  * Mengambil daftar seluruh hasil rekap C1 yang sudah diinput saksi
  */
 export async function getRekapListService(filter: RekapFilter) {
-  const { and, eq, sql } = await import("drizzle-orm");
-
   const conditions: any[] = [];
   if (filter.provinsi) conditions.push(eq(tRekapKomparasi.provinsi, filter.provinsi));
   if (filter.kabKota) conditions.push(eq(tRekapKomparasi.kabKota, filter.kabKota));

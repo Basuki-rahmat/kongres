@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { jwtPlugin } from "./auth-route";
+import { jwtPlugin, verifyJwt, checkRole } from "../middlewares/auth-middleware";
 import {
   normalizeKpuResponse,
   updateRekapFromKpu,
@@ -9,40 +9,36 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { tRekapKomparasi } from "../db/schema";
 
+async function requireAdmin(headers: Record<string, string | undefined>, jwt: any) {
+  const user = await verifyJwt(headers, jwt.verify as any);
+  if (!user) return null;
+  if (!checkRole(user, "ADMIN")) return null;
+  return user;
+}
+
 export const kpuRoute = new Elysia({ prefix: "/api/v1/kpu" })
   .use(jwtPlugin)
 
-  // -----------------------------------------------------------------------
-  // GET /api/v1/kpu/scrape-status
-  // Status worker scraper (admin)
-  // -----------------------------------------------------------------------
+  // GET /api/v1/kpu/scrape-status (ADMIN)
   .get("/scrape-status", async ({ headers, jwt, set }) => {
-    const payload = await verifyAdmin(headers, jwt);
-    if (!payload) {
+    const user = await requireAdmin(headers, jwt);
+    if (!user) {
       set.status = 403;
       return { error: "Akses ditolak. Role ADMIN diperlukan." };
     }
-
-    const status = getWorkerStatus();
-    return { data: status };
+    return { data: getWorkerStatus() };
   })
 
-  // -----------------------------------------------------------------------
-  // POST /api/v1/kpu/trigger-scrape
-  // Trigger satu siklus scraping secara manual (admin on-demand)
-  // -----------------------------------------------------------------------
+  // POST /api/v1/kpu/trigger-scrape (ADMIN)
   .post("/trigger-scrape", async ({ headers, jwt, set }) => {
-    const payload = await verifyAdmin(headers, jwt);
-    if (!payload) {
+    const user = await requireAdmin(headers, jwt);
+    if (!user) {
       set.status = 403;
       return { error: "Akses ditolak. Role ADMIN diperlukan." };
     }
 
-    console.log(
-      `[KPU Route] Scraping di-trigger manual oleh admin id=${payload.id}`
-    );
+    console.log(`[KPU Route] Scraping di-trigger manual oleh admin id=${user.id}`);
 
-    // Jalankan async tanpa blocking response
     runOneCycle().then((stats) => {
       if (stats) {
         console.log(
@@ -57,21 +53,16 @@ export const kpuRoute = new Elysia({ prefix: "/api/v1/kpu" })
     };
   })
 
-  // -----------------------------------------------------------------------
-  // PUT /api/v1/kpu/update-manual/:id_tps
-  // Input/simulasi data KPU secara manual untuk satu TPS (admin)
-  // Digunakan saat API KPU resmi belum tersedia / untuk pengujian
-  // -----------------------------------------------------------------------
+  // PUT /api/v1/kpu/update-manual/:id_tps (ADMIN)
   .put(
     "/update-manual/:id_tps",
     async ({ headers, jwt, params, body, set }) => {
-      const payload = await verifyAdmin(headers, jwt);
-      if (!payload) {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
         set.status = 403;
         return { error: "Akses ditolak. Role ADMIN diperlukan." };
       }
 
-      // Cek apakah TPS ada di database
       const [existing] = await db
         .select({ idTps: tRekapKomparasi.idTps })
         .from(tRekapKomparasi)
@@ -85,7 +76,6 @@ export const kpuRoute = new Elysia({ prefix: "/api/v1/kpu" })
         };
       }
 
-      // Normalisasi dan simpan data KPU
       const kpuData = normalizeKpuResponse({
         suara_partai: body.suara_partai_kpu,
         suara_caleg: body.suara_caleg_kpu,
@@ -97,7 +87,6 @@ export const kpuRoute = new Elysia({ prefix: "/api/v1/kpu" })
         kpuData
       );
 
-      // Ambil data lengkap untuk respon
       const [updated] = await db
         .select()
         .from(tRekapKomparasi)
@@ -120,25 +109,3 @@ export const kpuRoute = new Elysia({ prefix: "/api/v1/kpu" })
       }),
     }
   );
-
-// =============================================================================
-// HELPER: Verifikasi Admin JWT
-// =============================================================================
-async function verifyAdmin(
-  headers: Record<string, string | undefined>,
-  jwt: any
-): Promise<{ id: number; role: string } | null> {
-  const authHeader = headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-
-  const token = authHeader.substring(7);
-  const payload = (await jwt.verify(token)) as {
-    id: number;
-    role: string;
-  } | false;
-
-  if (!payload || !payload.id) return null;
-  if (payload.role !== "ADMIN") return null;
-
-  return payload;
-}

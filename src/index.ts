@@ -6,6 +6,7 @@ import { pengurusRoute } from "./routes/pengurus-route";
 import { saksiRoute } from "./routes/saksi-route";
 import { advokasiRoute } from "./routes/advokasi-route";
 import { kpuRoute } from "./routes/kpu-route";
+import { notificationRoute } from "./routes/notification-route";
 import { startKpuWorker } from "./workers/kpu-worker";
 
 const app = new Elysia()
@@ -22,6 +23,7 @@ const app = new Elysia()
   .use(saksiRoute)
   .use(advokasiRoute)
   .use(kpuRoute)
+  .use(notificationRoute)
   .listen(3000);
 
 // Mulai background worker KPU setelah server aktif

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { tRekapKomparasi } from "../db/schema";
+import { notifyTimHukumAnomaly } from "./notification-services";
 
 // =============================================================================
 // TIPE DATA
@@ -159,6 +160,21 @@ export async function updateRekapFromKpu(
   if (statusAnomali !== "MATCH" && statusAnomali !== "BELUM_TERVERIFIKASI") {
     console.warn(
       `[KPU Scraper] ⚠️  ANOMALI TERDETEKSI! TPS ${idTps}: ${statusAnomali} | Internal=${totalInternal} | KPU=${totalKpu} | Selisih=${totalInternal - totalKpu}`
+    );
+
+    // Push notifikasi ke Tim Hukum (role ADVOKASI)
+    notifyTimHukumAnomaly({
+      idTps,
+      provinsi: existing.provinsi,
+      kabKota: existing.kabKota,
+      kecamatan: existing.kecamatan,
+      kelurahan: existing.kelurahan,
+      noTps: existing.noTps,
+      statusAnomali,
+      selisih: totalInternal - totalKpu,
+      source: "KPU_SCRAPER",
+    }).catch((err) =>
+      console.error(`[KPU Scraper] Gagal kirim notifikasi: ${err.message}`)
     );
   }
 

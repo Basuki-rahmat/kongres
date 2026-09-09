@@ -3,6 +3,7 @@ import path from "path";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { tRekapKomparasi } from "../db/schema";
+import { notifyTimHukumAnomaly } from "./notification-services";
 
 export interface UploadC1Input {
   idTps: string;
@@ -87,6 +88,27 @@ export async function uploadC1Service(input: UploadC1Input, userId?: number) {
         statusAnomali,
       })
       .where(eq(tRekapKomparasi.idTps, input.idTps));
+
+    // Push notifikasi ke Tim Hukum jika anomali terdeteksi
+    if (
+      statusAnomali !== "MATCH" &&
+      statusAnomali !== "BELUM_TERVERIFIKASI"
+    ) {
+      const totalKpu = Number(existing.totalSuaraKpu) || 0;
+      notifyTimHukumAnomaly({
+        idTps: input.idTps,
+        provinsi: existing.provinsi,
+        kabKota: existing.kabKota,
+        kecamatan: existing.kecamatan,
+        kelurahan: existing.kelurahan,
+        noTps: existing.noTps,
+        statusAnomali,
+        selisih: totalSuaraInternal - totalKpu,
+        source: "SAKSI_C1",
+      }).catch((err) =>
+        console.error(`[Saksi] Gagal kirim notifikasi: ${err.message}`)
+      );
+    }
   } else {
     // Jika record TPS baru, field wilayah wajib diisi
     if (

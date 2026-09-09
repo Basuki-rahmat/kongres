@@ -22,6 +22,13 @@
       "when": 1788978048711,
       "tag": "0002_tricky_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1788979770524,
+      "tag": "0003_salty_edwin_jarvis",
+      "breakpoints": true
     }
   ]
 }

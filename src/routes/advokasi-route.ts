@@ -4,6 +4,7 @@ import {
   getAnomaliListService,
   getExportBuktiService,
   updateCatatanHukumService,
+  generatePdfService,
 } from "../services/advokasi-services";
 
 export const advokasiRoute = new Elysia({ prefix: "/api/v1/advokasi" })
@@ -60,4 +61,21 @@ export const advokasiRoute = new Elysia({ prefix: "/api/v1/advokasi" })
         catatan_hukum: t.String({ minLength: 1 }),
       }),
     }
-  );
+  )
+
+  // GET /api/v1/advokasi/download-bukti-pdf/:id_tps
+  // Download dokumen PDF bukti sengketa
+  .get("/download-bukti-pdf/:id_tps", async ({ params, set }) => {
+    const result = await generatePdfService(params.id_tps);
+    if (!result.success) {
+      set.status = result.status;
+      return { error: result.error };
+    }
+
+    return new Response(result.data, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${result.filename}"`,
+      },
+    });
+  });

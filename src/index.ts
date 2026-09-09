@@ -5,6 +5,8 @@ import { wilayahRoute } from "./routes/wilayah-route";
 import { pengurusRoute } from "./routes/pengurus-route";
 import { saksiRoute } from "./routes/saksi-route";
 import { advokasiRoute } from "./routes/advokasi-route";
+import { kpuRoute } from "./routes/kpu-route";
+import { startKpuWorker } from "./workers/kpu-worker";
 
 const app = new Elysia()
   .get("/", () => ({
@@ -19,7 +21,11 @@ const app = new Elysia()
   .use(pengurusRoute)
   .use(saksiRoute)
   .use(advokasiRoute)
+  .use(kpuRoute)
   .listen(3000);
+
+// Mulai background worker KPU setelah server aktif
+startKpuWorker();
 
 console.log(`🦊 Elysia is running at http://${app.server?.hostname}:${app.server?.port}`);
 

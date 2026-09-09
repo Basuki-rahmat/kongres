@@ -1,17 +1,12 @@
 import { Elysia, t } from "elysia";
-import { jwt } from "@elysiajs/jwt";
+import { jwtPlugin, verifyJwt } from "../middlewares/auth-middleware";
+import type { AuthUser } from "../middlewares/auth-middleware";
 import { loginService, getUserProfileService } from "../services/auth-services";
-
-export const jwtPlugin = jwt({
-  name: "jwt",
-  secret: process.env.JWT_SECRET || "supersecret_kongres_jwt_key_2026",
-  exp: "7d",
-});
 
 export const authRoute = new Elysia({ prefix: "/api/auth" })
   .use(jwtPlugin)
 
-  // POST /api/auth/login
+  // POST /api/auth/login (public)
   .post(
     "/login",
     async ({ body, jwt, set }) => {
@@ -22,7 +17,6 @@ export const authRoute = new Elysia({ prefix: "/api/auth" })
         return { error: result.error };
       }
 
-      // Generate token JWT
       const token = await jwt.sign({
         id: result.user.id,
         name: result.user.name,
@@ -44,32 +38,18 @@ export const authRoute = new Elysia({ prefix: "/api/auth" })
     }
   )
 
-  // GET /api/auth/me
+  // GET /api/auth/me (wajib login)
   .get("/me", async ({ headers, jwt, set }) => {
-    const authHeader = headers["authorization"];
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const user = await verifyJwt(headers, jwt.verify as any);
+    if (!user) {
       set.status = 401;
-      return { error: "Token otentikasi tidak ditemukan" };
+      return { error: "Token tidak valid" };
     }
 
-    const token = authHeader.substring(7);
-    const payload = (await jwt.verify(token)) as {
-      id: number;
-      name: string;
-      email: string;
-      role: string;
-    } | false;
-
-    if (!payload || !payload.id) {
-      set.status = 401;
-      return { error: "Token tidak valid atau telah kedaluwarsa" };
-    }
-
-    const profile = await getUserProfileService(payload.id);
+    const profile = await getUserProfileService(user.id);
     if (!profile.success) {
       set.status = profile.status;
       return { error: profile.error };
     }
-
     return { data: profile.user };
   });

@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { tRekapKomparasi } from "../db/schema";
+import { notifyTimHukumAnomaly } from "./notification-services";
 
 // =============================================================================
 // TIPE DATA
@@ -160,6 +161,21 @@ export async function updateRekapFromKpu(
     console.warn(
       `[KPU Scraper] ⚠️  ANOMALI TERDETEKSI! TPS ${idTps}: ${statusAnomali} | Internal=${totalInternal} | KPU=${totalKpu} | Selisih=${totalInternal - totalKpu}`
     );
+
+    // Push notifikasi ke Tim Hukum (role ADVOKASI)
+    notifyTimHukumAnomaly({
+      idTps,
+      provinsi: existing.provinsi,
+      kabKota: existing.kabKota,
+      kecamatan: existing.kecamatan,
+      kelurahan: existing.kelurahan,
+      noTps: existing.noTps,
+      statusAnomali,
+      selisih: totalInternal - totalKpu,
+      source: "KPU_SCRAPER",
+    }).catch((err) =>
+      console.error(`[KPU Scraper] Gagal kirim notifikasi: ${err.message}`)
+    );
   }
 
   return { statusAnomali, selisih: totalInternal - totalKpu };
@@ -180,7 +196,9 @@ export async function runScrapingCycle(): Promise<ScrapeStats> {
 
   console.log("[KPU Worker] 🔄 Memulai siklus scraping...");
 
-  // Ambil semua TPS yang sudah ada data saksinya
+  // Ambil TPS yang perlu di-scrape:
+  // 1. BELUM_TERVERIFIKASI (belum pernah di-scrape)
+  // 2. MISMATCH_KPU_OVER / MISMATCH_KPU_UNDER (perlu re-scrape untuk update)
   const allTps = await db
     .select({
       idTps: tRekapKomparasi.idTps,
@@ -188,7 +206,9 @@ export async function runScrapingCycle(): Promise<ScrapeStats> {
       lastScrapeTimestamp: tRekapKomparasi.lastScrapeTimestamp,
     })
     .from(tRekapKomparasi)
-    .where(eq(tRekapKomparasi.statusAnomali, "BELUM_TERVERIFIKASI"));
+    .where(
+      sql`${tRekapKomparasi.statusAnomali} IN ('BELUM_TERVERIFIKASI', 'MISMATCH_KPU_OVER', 'MISMATCH_KPU_UNDER')`
+    );
 
   stats.totalTps = allTps.length;
 

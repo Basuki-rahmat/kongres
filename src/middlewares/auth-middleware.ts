@@ -1,5 +1,16 @@
 import { Elysia } from "elysia";
-import { jwtPlugin } from "../routes/auth-route";
+import { jwt } from "@elysiajs/jwt";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("FATAL: JWT_SECRET harus diset di environment variables (.env)");
+}
+
+export const jwtPlugin = jwt({
+  name: "jwt",
+  secret: JWT_SECRET,
+  exp: "7d",
+});
 
 export interface AuthUser {
   id: number;
@@ -9,38 +20,23 @@ export interface AuthUser {
 }
 
 /**
- * Middleware untuk memvalidasi Bearer Token JWT dan mengekstrak data user.
- * Menyediakan 'user' ke context request.
+ * Helper: verifikasi JWT dari header.
  */
-export const authGuard = new Elysia({ name: "authGuard" })
-  .use(jwtPlugin)
-  .derive(async ({ headers, jwt, set }) => {
-    const authHeader = headers["authorization"];
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      set.status = 401;
-      throw new Error("UNAUTHORIZED: Token otentikasi diperlukan");
-    }
-
-    const token = authHeader.substring(7);
-    const payload = (await jwt.verify(token)) as AuthUser | false;
-
-    if (!payload || !payload.id) {
-      set.status = 401;
-      throw new Error("UNAUTHORIZED: Token tidak valid atau telah kedaluwarsa");
-    }
-
-    return { user: payload };
-  });
+export async function verifyJwt(
+  headers: Record<string, string | undefined>,
+  jwtVerify: (token: string) => Promise<AuthUser | false>
+): Promise<AuthUser | null> {
+  const authHeader = headers["authorization"];
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.substring(7);
+  const payload = await jwtVerify(token);
+  if (!payload || !payload.id) return null;
+  return payload;
+}
 
 /**
- * Helper untuk memeriksa apakah user memiliki role yang diizinkan.
+ * Helper: cek role user.
  */
-export function requireRoles(userRole: string, allowedRoles: string[]) {
-  if (!allowedRoles.includes(userRole)) {
-    const error: any = new Error(
-      `FORBIDDEN: Peran ${userRole} tidak memiliki izin untuk akses ini`
-    );
-    error.status = 403;
-    throw error;
-  }
+export function checkRole(user: AuthUser, ...allowedRoles: string[]): boolean {
+  return allowedRoles.includes(user.role);
 }

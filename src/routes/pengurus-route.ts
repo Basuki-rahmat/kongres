@@ -1,24 +1,21 @@
 import { Elysia, t } from "elysia";
+import { jwtPlugin, verifyJwt, checkRole } from "../middlewares/auth-middleware";
 import {
-  // DPD
   getPengurusDpdList,
   getPengurusDpdById,
   createPengurusDpd,
   updatePengurusDpd,
   deletePengurusDpd,
-  // DPC
   getPengurusDpcList,
   getPengurusDpcById,
   createPengurusDpc,
   updatePengurusDpc,
   deletePengurusDpc,
-  // PAC
   getPengurusPacList,
   getPengurusPacById,
   createPengurusPac,
   updatePengurusPac,
   deletePengurusPac,
-  // Anak Ranting
   getPengurusAnakRantingList,
   getPengurusAnakRantingById,
   createPengurusAnakRanting,
@@ -40,7 +37,16 @@ const BasePengurusSchema = {
   statusAktif: t.Optional(t.Boolean()),
 };
 
+async function requireAdmin(headers: Record<string, string | undefined>, jwt: any) {
+  const user = await verifyJwt(headers, jwt.verify as any);
+  if (!user) return null;
+  if (!checkRole(user, "ADMIN")) return null;
+  return user;
+}
+
 export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
+  .use(jwtPlugin)
+
   // ===========================================================================
   // DPD (TINGKAT PROVINSI)
   // ===========================================================================
@@ -67,7 +73,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   })
   .post(
     "/dpd",
-    async ({ body, set }) => {
+    async ({ headers, jwt, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await createPengurusDpd(body);
       set.status = 201;
       return { data };
@@ -81,7 +92,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   )
   .put(
     "/dpd/:id",
-    async ({ params, body }) => {
+    async ({ headers, jwt, params, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await updatePengurusDpd(Number(params.id), body);
       return { data };
     },
@@ -94,7 +110,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
       ),
     }
   )
-  .delete("/dpd/:id", async ({ params }) => {
+  .delete("/dpd/:id", async ({ headers, jwt, params, set }) => {
+    const user = await requireAdmin(headers, jwt);
+    if (!user) {
+      set.status = 403;
+      return { error: "Akses ditolak. Role ADMIN diperlukan." };
+    }
     return await deletePengurusDpd(Number(params.id));
   })
 
@@ -126,7 +147,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   })
   .post(
     "/dpc",
-    async ({ body, set }) => {
+    async ({ headers, jwt, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await createPengurusDpc(body);
       set.status = 201;
       return { data };
@@ -140,7 +166,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   )
   .put(
     "/dpc/:id",
-    async ({ params, body }) => {
+    async ({ headers, jwt, params, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await updatePengurusDpc(Number(params.id), body);
       return { data };
     },
@@ -153,7 +184,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
       ),
     }
   )
-  .delete("/dpc/:id", async ({ params }) => {
+  .delete("/dpc/:id", async ({ headers, jwt, params, set }) => {
+    const user = await requireAdmin(headers, jwt);
+    if (!user) {
+      set.status = 403;
+      return { error: "Akses ditolak. Role ADMIN diperlukan." };
+    }
     return await deletePengurusDpc(Number(params.id));
   })
 
@@ -185,7 +221,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   })
   .post(
     "/pac",
-    async ({ body, set }) => {
+    async ({ headers, jwt, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await createPengurusPac(body);
       set.status = 201;
       return { data };
@@ -199,7 +240,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   )
   .put(
     "/pac/:id",
-    async ({ params, body }) => {
+    async ({ headers, jwt, params, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await updatePengurusPac(Number(params.id), body);
       return { data };
     },
@@ -212,7 +258,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
       ),
     }
   )
-  .delete("/pac/:id", async ({ params }) => {
+  .delete("/pac/:id", async ({ headers, jwt, params, set }) => {
+    const user = await requireAdmin(headers, jwt);
+    if (!user) {
+      set.status = 403;
+      return { error: "Akses ditolak. Role ADMIN diperlukan." };
+    }
     return await deletePengurusPac(Number(params.id));
   })
 
@@ -242,7 +293,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   })
   .post(
     "/anak-ranting",
-    async ({ body, set }) => {
+    async ({ headers, jwt, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await createPengurusAnakRanting(body);
       set.status = 201;
       return { data };
@@ -256,7 +312,12 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
   )
   .put(
     "/anak-ranting/:id",
-    async ({ params, body }) => {
+    async ({ headers, jwt, params, body, set }) => {
+      const user = await requireAdmin(headers, jwt);
+      if (!user) {
+        set.status = 403;
+        return { error: "Akses ditolak. Role ADMIN diperlukan." };
+      }
       const data = await updatePengurusAnakRanting(Number(params.id), body);
       return { data };
     },
@@ -269,6 +330,11 @@ export const pengurusRoute = new Elysia({ prefix: "/api/pengurus" })
       ),
     }
   )
-  .delete("/anak-ranting/:id", async ({ params }) => {
+  .delete("/anak-ranting/:id", async ({ headers, jwt, params, set }) => {
+    const user = await requireAdmin(headers, jwt);
+    if (!user) {
+      set.status = 403;
+      return { error: "Akses ditolak. Role ADMIN diperlukan." };
+    }
     return await deletePengurusAnakRanting(Number(params.id));
   });

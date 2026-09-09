@@ -234,6 +234,31 @@ export const pengurusAnakRanting = mysqlTable(
 );
 
 // =============================================================================
+// TABEL NOTIFIKASI (PUSH NOTIFICATION KE TIM HUKUM)
+// =============================================================================
+export const notifications = mysqlTable(
+  "notifications",
+  {
+    id: int("id").primaryKey().autoincrement(),
+    userId: int("user_id")
+      .notNull()
+      .references(() => users.id),
+    title: varchar("title", { length: 255 }).notNull(),
+    body: text("body").notNull(),
+    type: varchar("type", { length: 50 }).notNull(),
+    referenceId: varchar("reference_id", { length: 50 }),
+    referenceType: varchar("reference_type", { length: 50 }),
+    isRead: boolean("is_read").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_notif_user").on(table.userId),
+    index("idx_notif_read").on(table.isRead),
+    index("idx_notif_type").on(table.type),
+  ]
+);
+
+// =============================================================================
 // RELATIONS (DRIZZLE ORM)
 // =============================================================================
 export const provinsiRelations = relations(provinsi, ({ many }) => ({
@@ -298,6 +323,31 @@ export const pengurusAnakRantingRelations = relations(
   })
 );
 
+// Relasi Users -> Notifikasi & Rekap Komparasi
+export const usersRelations = relations(users, ({ many }) => ({
+  notifications: many(notifications),
+  rekapKomparasi: many(tRekapKomparasi),
+}));
+
+// Relasi Notifications -> Users
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+}));
+
+// Relasi TRekapKomparasi -> Users (saksi)
+export const tRekapKomparasiRelations = relations(
+  tRekapKomparasi,
+  ({ one }) => ({
+    saksiUser: one(users, {
+      fields: [tRekapKomparasi.saksiUserId],
+      references: [users.id],
+    }),
+  })
+);
+
 // =============================================================================
 // TYPE INFERENCES
 // =============================================================================
@@ -324,3 +374,6 @@ export type PengurusPac = typeof pengurusPac.$inferSelect;
 export type NewPengurusPac = typeof pengurusPac.$inferInsert;
 export type PengurusAnakRanting = typeof pengurusAnakRanting.$inferSelect;
 export type NewPengurusAnakRanting = typeof pengurusAnakRanting.$inferInsert;
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;

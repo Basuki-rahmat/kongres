@@ -146,9 +146,9 @@ Buat API untuk mendaftarkan pengguna baru dengan spesifikasi:
 
 ### ❌ Belum Diimplementasi (Frontend)
 - [x] **Client App Saksi (PWA / Mobile-first)** — Vanilla HTML/CSS/JS, 4 halaman
-- [ ] Admin/Legal Panel Dashboard
-- [ ] Monitoring Anomali Real-time (WebSocket/SSE di frontend)
-- [ ] Form Keberatan Saksi (digital)
+- [x] **Admin/Legal Panel Dashboard** — Desktop-first, 5 halaman
+- [x] **Monitoring Anomali Real-time (WebSocket/SSE di frontend)** — Live feed + SSE auto-refresh
+- [x] **Form Keberatan Saksi (digital)** — Form + export PDF bukti sengketa
 
 ### ❌ Belum Diimplementasi (Backend Lanjutan)
 - [ ] Job queue (BullMQ) untuk scraping

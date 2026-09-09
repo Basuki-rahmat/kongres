@@ -97,7 +97,7 @@ export async function fetchKpuData(
       return null;
     }
 
-    const raw: KpuRawResponse = await response.json();
+    const raw = (await response.json()) as KpuRawResponse;
     return normalizeKpuResponse(raw);
   } catch (err: any) {
     if (err.name === "AbortError") {

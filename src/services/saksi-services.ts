@@ -33,8 +33,8 @@ function saveBase64Image(base64Str: string, idTps: string): string {
   // Cek apakah ada header Data URI (contoh: data:image/png;base64,...)
   const matches = base64Str.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
   if (matches) {
-    extension = matches[1] === "jpeg" ? "jpg" : matches[1];
-    cleanBase64 = matches[2];
+    extension = matches[1] === "jpeg" ? "jpg" : matches[1]!;
+    cleanBase64 = matches[2]!;
   }
 
   const filename = `c1_${idTps.replace(/[^a-zA-Z0-9_-]/g, "_")}_${Date.now()}.${extension}`;
